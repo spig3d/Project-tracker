@@ -61,7 +61,7 @@
     if (root && root.children.length === 0 && !shown) {
       showError(
         'The app never started',
-        'One of the required scripts (React, Supabase, or Babel) likely failed to load — often a network hiccup or a slow connection. Try reloading. If it keeps happening, check your internet connection.'
+        'One of the required scripts (React, Supabase) likely failed to load — often a network hiccup or a slow connection. Try reloading. If it keeps happening, check your internet connection.'
       );
     }
   }, 6000);
@@ -73,8 +73,6 @@
 <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
 <!-- Supabase client -->
 <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
-<!-- Babel standalone — lets this file use JSX with no build step -->
-<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
 <script>
 // Storage adapter — implements the same window.storage.get/set/delete/list
@@ -122,507 +120,474 @@
 })();
 </script>
 
-<script type="text/babel" data-presets="react">
-const { useState, useEffect, useRef, useMemo } = React;
-
-/* ---------------------------------------------------------
-   Small local icon set — replaces the lucide-react package
-   dependency so this file has zero build step and zero
-   package dependencies beyond the CDN scripts below.
---------------------------------------------------------- */
-function Icon({ children, size = 16, color = "currentColor" }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color}
-         strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      {children}
-    </svg>
-  );
-}
-function Plus(props) { return <Icon {...props}><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></Icon>; }
-function Search(props) { return <Icon {...props}><circle cx="11" cy="11" r="7" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></Icon>; }
-function ArrowLeft(props) { return <Icon {...props}><line x1="19" y1="12" x2="5" y2="12" /><polyline points="12 19 5 12 12 5" /></Icon>; }
-function Camera(props) { return <Icon {...props}><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" /><circle cx="12" cy="13" r="4" /></Icon>; }
-function X(props) { return <Icon {...props}><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></Icon>; }
-function Check(props) { return <Icon {...props}><polyline points="20 6 9 17 4 12" /></Icon>; }
-function Palette(props) { return <Icon {...props}><circle cx="13.5" cy="6.5" r="1.5" /><circle cx="17.5" cy="10.5" r="1.5" /><circle cx="8.5" cy="7.5" r="1.5" /><circle cx="6.5" cy="12.5" r="1.5" /><path d="M12 2a10 10 0 1 0 10 10c0-1-1-2-2-2h-2.5a2.5 2.5 0 0 1 0-5H18a2 2 0 0 0 2-2c0-1.5-3.5-3-8-3z" /></Icon>; }
-function Trash2(props) { return <Icon {...props}><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /><line x1="10" y1="11" x2="10" y2="17" /><line x1="14" y1="11" x2="14" y2="17" /></Icon>; }
-function Edit3(props) { return <Icon {...props}><path d="M12 20h9" /><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" /></Icon>; }
-function Download(props) { return <Icon {...props}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></Icon>; }
-function Upload(props) { return <Icon {...props}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" /></Icon>; }
-
-
-/* Two custom icons for the catalog chooser — kept in the same stroke-based
-   line-icon style as the imported set, since there's no natural existing
-   icon for "display shelf" or "badge clipped to a pocket." */
-function ShelfIcon({ size = 40, color = "currentColor" }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color}
-         strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-      <line x1="3" y1="7" x2="21" y2="7" />
-      <line x1="3" y1="17" x2="21" y2="17" />
-      <circle cx="7" cy="4.2" r="1.4" fill={color} stroke="none" />
-      <circle cx="13" cy="4.2" r="1.4" fill={color} stroke="none" />
-      <circle cx="18.5" cy="4" r="1.6" fill={color} stroke="none" />
-      <circle cx="9" cy="14.2" r="1.6" fill={color} stroke="none" />
-      <circle cx="16" cy="14" r="1.4" fill={color} stroke="none" />
-    </svg>
-  );
-}
-function PocketIcon({ size = 40, color = "currentColor" }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color}
-         strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M4 4h16v11a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5V4z" />
-      <path d="M4 10c3 1.6 13 1.6 16 0" />
-      <circle cx="12" cy="7" r="1.8" fill={color} stroke="none" />
-    </svg>
-  );
-}
-
-/* ---------------------------------------------------------
-   Design tokens
-   Primer grey base, wet-palette accent cluster used only
-   for brand tags / paint swatches / primary actions.
---------------------------------------------------------- */
-const INK = "#EDE8E2";
-const INK_MUTED = "#9C948C";
-const BG = "#201E1D";
-const SURFACE = "#2A2827";
-const SURFACE_RAISED = "#332F2D";
-const LINE = "#3E3936";
-const GOLD = "#C9A227";
-const BRAND_COLORS = {
-  "Games Workshop": "#B23A48",
-  "Vallejo": "#3D8C82",
-  "Army Painter": "#C9A227",
-  "Pro Acryl": "#D8CBB4",
-  "Turbodork": "#8A6FB0",
-};
-
-const BRAND_TEXT_ON_CHIP = {
-  "Pro Acryl": "#201E1D",
-};
-
-/* Default divisions for a new project. Fully editable/addable per project —
-   these are just the starting point. */
-const DEFAULT_SECTIONS = [
-  { id: "model", label: "Model" },
-  { id: "base", label: "Base" },
-];
-
-/* Two independent catalogs sharing the same structure — only the wording
-   and storage key differ. Minis keep the original "project-index" key so
-   existing saved data is untouched; badge reels get their own key. */
-const CATALOGS = {
-  mini: {
-    key: "mini",
-    screenTitle: "The Shelf",
-    subtitle: "(Minis)",
-    entryLabel: "miniature",
-    addLabel: "Add miniature",
-    namePlaceholder: "Miniature name",
-    emptyMessage: "The shelf is empty. Prime your first base and add a miniature.",
-    indexKey: "project-index",
-  },
-  badge: {
-    key: "badge",
-    screenTitle: "The Pocket",
-    subtitle: "(Badge reels)",
-    entryLabel: "badge reel",
-    addLabel: "Add badge reel",
-    namePlaceholder: "Badge reel name",
-    emptyMessage: "The pocket is empty. Add your first badge reel.",
-    indexKey: "badge-index",
-  },
-};
-
-/* ---------------------------------------------------------
-   Seed paint catalog. Personal database — names are a
-   reasonable starting point; everything is editable and
-   you can add/rename/delete freely once loaded.
---------------------------------------------------------- */
-const SEED_PAINTS = [
-  // Games Workshop / Citadel
-  ["Games Workshop", "Base", "Abaddon Black"],
-  ["Games Workshop", "Base", "Corax White"],
-  ["Games Workshop", "Base", "Mephiston Red"],
-  ["Games Workshop", "Base", "Macragge Blue"],
-  ["Games Workshop", "Base", "Caledor Sky"],
-  ["Games Workshop", "Base", "Warpstone Glow"],
-  ["Games Workshop", "Base", "Death Guard Green"],
-  ["Games Workshop", "Base", "Averland Sunset"],
-  ["Games Workshop", "Base", "Zandri Dust"],
-  ["Games Workshop", "Base", "Steel Legion Drab"],
-  ["Games Workshop", "Base", "Rakarth Flesh"],
-  ["Games Workshop", "Base", "Mechanicus Standard Grey"],
-  ["Games Workshop", "Base", "Retributor Armour"],
-  ["Games Workshop", "Base", "Leadbelcher"],
-  ["Games Workshop", "Base", "Balthasar Gold"],
-  ["Games Workshop", "Base", "Screamer Pink"],
-  ["Games Workshop", "Base", "Kantor Blue"],
-  ["Games Workshop", "Shade", "Nuln Oil"],
-  ["Games Workshop", "Shade", "Agrax Earthshade"],
-  ["Games Workshop", "Shade", "Reikland Fleshshade"],
-  ["Games Workshop", "Shade", "Drakenhof Nightshade"],
-  ["Games Workshop", "Shade", "Seraphim Sepia"],
-  ["Games Workshop", "Layer", "Ushabti Bone"],
-  ["Games Workshop", "Layer", "Fenrisian Grey"],
-  ["Games Workshop", "Layer", "White Scar"],
-  ["Games Workshop", "Layer", "Ice Blue"],
-  ["Games Workshop", "Layer", "Runelord Brass"],
-  // Vallejo
-  ["Vallejo", "Model Color", "Black"],
-  ["Vallejo", "Model Color", "Off White"],
-  ["Vallejo", "Model Color", "Flat Flesh"],
-  ["Vallejo", "Model Color", "Heavy Red"],
-  ["Vallejo", "Model Color", "Sky Blue"],
-  ["Vallejo", "Model Color", "German Grey"],
-  ["Vallejo", "Model Color", "English Uniform"],
-  ["Vallejo", "Model Color", "Green Ochre"],
-  ["Vallejo", "Model Color", "Prussian Blue"],
-  ["Vallejo", "Model Color", "Burnt Umber"],
-  ["Vallejo", "Model Color", "Flat Earth"],
-  ["Vallejo", "Model Color", "Gold"],
-  ["Vallejo", "Model Color", "Silver"],
-  ["Vallejo", "Model Color", "Bronze"],
-  ["Vallejo", "Game Color", "Dead White"],
-  ["Vallejo", "Game Color", "Bloody Red"],
-  ["Vallejo", "Game Color", "Heavy Blue"],
-  ["Vallejo", "Game Color", "Elf Skin"],
-  ["Vallejo", "Game Color", "Sunny Skintone"],
-  ["Vallejo", "Game Color", "Charred Brown"],
-  ["Vallejo", "Game Color", "Livery Green"],
-  ["Vallejo", "Game Color", "Verdigris"],
-  ["Vallejo", "Game Color", "Turquoise"],
-  ["Vallejo", "Game Color", "Magic Blue"],
-  ["Vallejo", "Game Color", "Warlord Purple"],
-  ["Vallejo", "Game Color", "Gory Red"],
-  // Army Painter
-  ["Army Painter", "Fanatic", "Matt Black"],
-  ["Army Painter", "Fanatic", "Matt White"],
-  ["Army Painter", "Fanatic", "Skeleton Bone"],
-  ["Army Painter", "Fanatic", "Elven Flesh"],
-  ["Army Painter", "Fanatic", "Dragon Red"],
-  ["Army Painter", "Fanatic", "Lava Orange"],
-  ["Army Painter", "Fanatic", "Daemonic Yellow"],
-  ["Army Painter", "Fanatic", "Greedy Gold"],
-  ["Army Painter", "Fanatic", "Plate Mail Metal"],
-  ["Army Painter", "Fanatic", "Gun Metal"],
-  ["Army Painter", "Fanatic", "Crystal Blue"],
-  ["Army Painter", "Fanatic", "Ultramarine"],
-  ["Army Painter", "Fanatic", "Army Green"],
-  ["Army Painter", "Fanatic", "Goblin Green"],
-  ["Army Painter", "Speedpaint", "Wolf Grey"],
-  ["Army Painter", "Speedpaint", "Ash Grey"],
-  ["Army Painter", "Speedpaint", "Anthracite"],
-  ["Army Painter", "Speedpaint", "Blood Red"],
-  ["Army Painter", "Speedpaint", "Charred Brown"],
-  ["Army Painter", "Speedpaint", "Bonestorm"],
-  ["Army Painter", "Speedpaint", "Wildfire"],
-  ["Army Painter", "Speedpaint", "Army Green"],
-  ["Army Painter", "Speedpaint", "Crystal Blue"],
-  ["Army Painter", "Speedpaint", "Golden Tan"],
-  ["Army Painter", "Air", "Ash Black"],
-  ["Army Painter", "Air", "Matt White"],
-  ["Army Painter", "Air", "Skeleton Bone"],
-  ["Army Painter", "Air", "Ghostly Grey"],
-  ["Army Painter", "Air", "Army Green"],
-  ["Army Painter", "Air", "Ultramarine"],
-  // Pro Acryl
-  ["Pro Acryl", "Core", "Titanium White"],
-  ["Pro Acryl", "Core", "Jet Black"],
-  ["Pro Acryl", "Core", "Storm Grey"],
-  ["Pro Acryl", "Core", "Cold Grey"],
-  ["Pro Acryl", "Core", "Warm Grey"],
-  ["Pro Acryl", "Core", "Bone White"],
-  ["Pro Acryl", "Core", "Fire Red"],
-  ["Pro Acryl", "Core", "Deep Green"],
-  ["Pro Acryl", "Core", "Ultra Blue"],
-  ["Pro Acryl", "Core", "Leather Brown"],
-  ["Pro Acryl", "Core", "Bronze"],
-  ["Pro Acryl", "Core", "Gold"],
-  ["Pro Acryl", "Core", "Silver"],
-  ["Pro Acryl", "Core", "Turquoise"],
-  ["Pro Acryl", "Core", "Rust"],
-  // Turbodork
-  ["Turbodork", "Core", "Frostbite"],
-  ["Turbodork", "Core", "Rust"],
-  ["Turbodork", "Core", "Radioactive Slime"],
-  ["Turbodork", "Core", "Napalm"],
-  ["Turbodork", "Core", "Gore"],
-  ["Turbodork", "Core", "Oil Slick"],
-  ["Turbodork", "Core", "Electric Blue"],
-  ["Turbodork", "Core", "Traitor Purple"],
-  ["Turbodork", "Core", "Deceased"],
-  ["Turbodork", "Core", "Antifreeze"],
-  ["Turbodork", "Wash", "Sedition Wash"],
-];
-
-/* Guess a swatch dot color from the paint name — decorative only. */
-function guessSwatchColor(name) {
-  const n = name.toLowerCase();
-  const map = [
-    [/black|abaddon|anthracite|jet|ash black/, "#1C1A19"],
-    [/white|bone|corax|skeleton|dead white|ghostly/, "#DED9CC"],
-    [/red|crimson|blood|gore|dragon|mephiston/, "#9C2B32"],
-    [/orange|lava|rust|napalm|tan|sunset/, "#C1652E"],
-    [/yellow|gold|daemonic|golden/, "#C9A227"],
-    [/green|slime|verdigris|goblin|death guard/, "#4C6B3A"],
-    [/teal|turquoise|verdigris/, "#2E7A72"],
-    [/blue|sky|ultramarine|prussian|crystal|electric|magic/, "#2C5C8A"],
-    [/purple|warlord|traitor|magic/, "#6A4C82"],
-    [/pink|screamer/, "#C46B95"],
-    [/grey|gray|storm|cold|warm|steel|drab/, "#8A857F"],
-    [/silver|metal|leadbelcher|plate mail/, "#B9B9B9"],
-    [/bronze/, "#8C6239"],
-    [/brown|umber|leather|charred|earth/, "#6B4A32"],
-    [/flesh|skin/, "#C99B77"],
-    [/sepia|earthshade|oil/, "#5A3E20"],
-  ];
-  for (const [re, hex] of map) if (re.test(n)) return hex;
-  return "#6E6A66";
-}
-
-function uid() {
-  return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
-}
-
-function brandColor(brand) {
-  return BRAND_COLORS[brand] || "#8A857F";
-}
-function brandTextColor(brand) {
-  return BRAND_TEXT_ON_CHIP[brand] || "#201E1D";
-}
-
-/* Resize + compress an image file to a data URL. */
-function fileToResizedDataUrl(file, maxDim, quality) {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      img.onload = () => {
-        let { width, height } = img;
-        if (width > height && width > maxDim) {
-          height = Math.round((height * maxDim) / width);
-          width = maxDim;
-        } else if (height > maxDim) {
-          width = Math.round((width * maxDim) / height);
-          height = maxDim;
-        }
-        const canvas = document.createElement("canvas");
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext("2d");
-        ctx.drawImage(img, 0, 0, width, height);
-        resolve(canvas.toDataURL("image/jpeg", quality));
-      };
-      img.onerror = reject;
-      img.src = e.target.result;
-    };
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
-}
-
-/* ---------------------------------------------------------
-   Small building blocks
---------------------------------------------------------- */
-/* ---------------------------------------------------------
-   Shown when a load fails after retries. Never bypassed
-   automatically — starting fresh requires an explicit tap,
-   so a transient hiccup can never silently overwrite real
-   saved data.
---------------------------------------------------------- */
-function DataLoadError({ message, onRetry, onStartFresh }) {
-  const [confirmFresh, setConfirmFresh] = useState(false);
-  return (
-    <div
-      style={{
-        background: BG,
-        minHeight: "100vh",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        fontFamily: "Inter, sans-serif",
-        color: INK,
-        padding: 24,
-      }}
-    >
-      <div style={{ maxWidth: 380 }}>
-        <div style={{ fontSize: 15, color: INK_MUTED, marginBottom: 20, lineHeight: 1.5 }}>{message}</div>
-        <PrimaryBtn onClick={onRetry} style={{ marginBottom: 12, width: "100%", justifyContent: "center" }}>
-          Try again
-        </PrimaryBtn>
-        {!confirmFresh ? (
-          <button
-            onClick={() => setConfirmFresh(true)}
-            style={{
-              width: "100%",
-              background: "transparent",
-              border: `1px solid ${LINE}`,
-              color: INK_MUTED,
-              borderRadius: 10,
-              padding: "10px 16px",
-              fontSize: 13,
-              cursor: "pointer",
-            }}
-          >
-            Nothing saved yet — start fresh
-          </button>
-        ) : (
-          <div style={{ border: `1px solid ${LINE}`, borderRadius: 10, padding: 14 }}>
-            <div style={{ fontSize: 13, color: INK_MUTED, marginBottom: 10 }}>
-              Only do this if you're sure — if anything was saved before, starting fresh won't bring it
-              back once you save again.
-            </div>
-            <div style={{ display: "flex", gap: 8 }}>
-              <PrimaryBtn onClick={onStartFresh} style={{ background: "#B23A48", color: INK }}>
-                Yes, start fresh
-              </PrimaryBtn>
-              <button
-                onClick={() => setConfirmFresh(false)}
-                style={{ background: "transparent", border: `1px solid ${LINE}`, color: INK, borderRadius: 10, padding: "10px 16px", cursor: "pointer" }}
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function IconBtn({ onClick, children, label, style }) {
-  return (
-    <button
-      onClick={onClick}
-      aria-label={label}
-      style={{
-        background: SURFACE_RAISED,
-        border: `1px solid ${LINE}`,
-        borderRadius: 10,
-        width: 40,
-        height: 40,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        color: INK,
-        cursor: "pointer",
-        flexShrink: 0,
-        ...style,
-      }}
-    >
-      {children}
-    </button>
-  );
-}
-
-function PrimaryBtn({ onClick, children, style, disabled }) {
-  return (
-    <button
-      onClick={onClick}
-      disabled={disabled}
-      style={{
-        background: disabled ? "#5a5148" : GOLD,
-        color: "#201E1D",
-        border: "none",
-        borderRadius: 10,
-        padding: "10px 18px",
-        fontWeight: 700,
-        fontFamily: "Inter, sans-serif",
-        fontSize: 14,
-        cursor: disabled ? "default" : "pointer",
-        display: "flex",
-        alignItems: "center",
-        gap: 8,
-        ...style,
-      }}
-    >
-      {children}
-    </button>
-  );
-}
-
-function BaseThumb({ src, size = 96, onClick }) {
-  return (
-    <div
-      onClick={onClick}
-      style={{
+<!-- Pre-compiled app (JSX already transformed to plain JS — no in-browser
+     Babel transform involved, removing an entire class of runtime risk) -->
+<script>
+(() => {
+  // full-source.jsx
+  var { useState, useEffect, useRef, useMemo } = React;
+  function Icon({ children, size = 16, color = "currentColor" }) {
+    return /* @__PURE__ */ React.createElement(
+      "svg",
+      {
         width: size,
         height: size,
-        borderRadius: "50%",
-        background: src ? `#111 url(${src}) center/cover no-repeat` : SURFACE_RAISED,
-        border: `3px solid ${LINE}`,
-        boxShadow: "0 4px 10px rgba(0,0,0,0.35), inset 0 0 0 2px #15130f",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        cursor: onClick ? "pointer" : "default",
-        flexShrink: 0,
-      }}
-    >
-      {!src && <Camera size={size * 0.28} color={INK_MUTED} />}
-    </div>
-  );
-}
-
-/* ---------------------------------------------------------
-   Brand-autosuggest free text area.
-   Type freely; if the word under your cursor matches the
-   start of a brand name, tap the suggestion to complete it
-   and keep typing. No catalog, no search — just a fast nudge.
---------------------------------------------------------- */
-const BRAND_NAMES = Object.keys(BRAND_COLORS);
-
-function getWordBeforeCursor(value, cursor) {
-  const upto = value.slice(0, cursor);
-  const match = upto.match(/[A-Za-z']+$/);
-  return match ? match[0] : "";
-}
-
-function FreeTextPaintNotes({ value, onChange, placeholder }) {
-  const taRef = useRef(null);
-  const [cursor, setCursor] = useState(0);
-
-  const word = getWordBeforeCursor(value, cursor);
-  const suggestions =
-    word.length > 0
-      ? BRAND_NAMES.filter((b) => b.toLowerCase().startsWith(word.toLowerCase()) && b.toLowerCase() !== word.toLowerCase())
-      : [];
-
-  function trackCursor(e) {
-    setCursor(e.target.selectionStart);
+        viewBox: "0 0 24 24",
+        fill: "none",
+        stroke: color,
+        strokeWidth: "2",
+        strokeLinecap: "round",
+        strokeLinejoin: "round"
+      },
+      children
+    );
   }
-
-  function applySuggestion(brand) {
-    const el = taRef.current;
-    const pos = cursor;
-    const before = value.slice(0, pos - word.length);
-    const after = value.slice(pos);
-    const next = before + brand + " " + after;
-    onChange(next);
-    const newPos = before.length + brand.length + 1;
-    requestAnimationFrame(() => {
-      el.focus();
-      el.setSelectionRange(newPos, newPos);
-      setCursor(newPos);
+  function Plus(props) {
+    return /* @__PURE__ */ React.createElement(Icon, { ...props }, /* @__PURE__ */ React.createElement("line", { x1: "12", y1: "5", x2: "12", y2: "19" }), /* @__PURE__ */ React.createElement("line", { x1: "5", y1: "12", x2: "19", y2: "12" }));
+  }
+  function Search(props) {
+    return /* @__PURE__ */ React.createElement(Icon, { ...props }, /* @__PURE__ */ React.createElement("circle", { cx: "11", cy: "11", r: "7" }), /* @__PURE__ */ React.createElement("line", { x1: "21", y1: "21", x2: "16.65", y2: "16.65" }));
+  }
+  function ArrowLeft(props) {
+    return /* @__PURE__ */ React.createElement(Icon, { ...props }, /* @__PURE__ */ React.createElement("line", { x1: "19", y1: "12", x2: "5", y2: "12" }), /* @__PURE__ */ React.createElement("polyline", { points: "12 19 5 12 12 5" }));
+  }
+  function Camera(props) {
+    return /* @__PURE__ */ React.createElement(Icon, { ...props }, /* @__PURE__ */ React.createElement("path", { d: "M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" }), /* @__PURE__ */ React.createElement("circle", { cx: "12", cy: "13", r: "4" }));
+  }
+  function X(props) {
+    return /* @__PURE__ */ React.createElement(Icon, { ...props }, /* @__PURE__ */ React.createElement("line", { x1: "18", y1: "6", x2: "6", y2: "18" }), /* @__PURE__ */ React.createElement("line", { x1: "6", y1: "6", x2: "18", y2: "18" }));
+  }
+  function Check(props) {
+    return /* @__PURE__ */ React.createElement(Icon, { ...props }, /* @__PURE__ */ React.createElement("polyline", { points: "20 6 9 17 4 12" }));
+  }
+  function Palette(props) {
+    return /* @__PURE__ */ React.createElement(Icon, { ...props }, /* @__PURE__ */ React.createElement("circle", { cx: "13.5", cy: "6.5", r: "1.5" }), /* @__PURE__ */ React.createElement("circle", { cx: "17.5", cy: "10.5", r: "1.5" }), /* @__PURE__ */ React.createElement("circle", { cx: "8.5", cy: "7.5", r: "1.5" }), /* @__PURE__ */ React.createElement("circle", { cx: "6.5", cy: "12.5", r: "1.5" }), /* @__PURE__ */ React.createElement("path", { d: "M12 2a10 10 0 1 0 10 10c0-1-1-2-2-2h-2.5a2.5 2.5 0 0 1 0-5H18a2 2 0 0 0 2-2c0-1.5-3.5-3-8-3z" }));
+  }
+  function Trash2(props) {
+    return /* @__PURE__ */ React.createElement(Icon, { ...props }, /* @__PURE__ */ React.createElement("polyline", { points: "3 6 5 6 21 6" }), /* @__PURE__ */ React.createElement("path", { d: "M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" }), /* @__PURE__ */ React.createElement("line", { x1: "10", y1: "11", x2: "10", y2: "17" }), /* @__PURE__ */ React.createElement("line", { x1: "14", y1: "11", x2: "14", y2: "17" }));
+  }
+  function Edit3(props) {
+    return /* @__PURE__ */ React.createElement(Icon, { ...props }, /* @__PURE__ */ React.createElement("path", { d: "M12 20h9" }), /* @__PURE__ */ React.createElement("path", { d: "M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" }));
+  }
+  function Download(props) {
+    return /* @__PURE__ */ React.createElement(Icon, { ...props }, /* @__PURE__ */ React.createElement("path", { d: "M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" }), /* @__PURE__ */ React.createElement("polyline", { points: "7 10 12 15 17 10" }), /* @__PURE__ */ React.createElement("line", { x1: "12", y1: "15", x2: "12", y2: "3" }));
+  }
+  function Upload(props) {
+    return /* @__PURE__ */ React.createElement(Icon, { ...props }, /* @__PURE__ */ React.createElement("path", { d: "M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" }), /* @__PURE__ */ React.createElement("polyline", { points: "17 8 12 3 7 8" }), /* @__PURE__ */ React.createElement("line", { x1: "12", y1: "3", x2: "12", y2: "15" }));
+  }
+  function ShelfIcon({ size = 40, color = "currentColor" }) {
+    return /* @__PURE__ */ React.createElement(
+      "svg",
+      {
+        width: size,
+        height: size,
+        viewBox: "0 0 24 24",
+        fill: "none",
+        stroke: color,
+        strokeWidth: "1.6",
+        strokeLinecap: "round",
+        strokeLinejoin: "round"
+      },
+      /* @__PURE__ */ React.createElement("line", { x1: "3", y1: "7", x2: "21", y2: "7" }),
+      /* @__PURE__ */ React.createElement("line", { x1: "3", y1: "17", x2: "21", y2: "17" }),
+      /* @__PURE__ */ React.createElement("circle", { cx: "7", cy: "4.2", r: "1.4", fill: color, stroke: "none" }),
+      /* @__PURE__ */ React.createElement("circle", { cx: "13", cy: "4.2", r: "1.4", fill: color, stroke: "none" }),
+      /* @__PURE__ */ React.createElement("circle", { cx: "18.5", cy: "4", r: "1.6", fill: color, stroke: "none" }),
+      /* @__PURE__ */ React.createElement("circle", { cx: "9", cy: "14.2", r: "1.6", fill: color, stroke: "none" }),
+      /* @__PURE__ */ React.createElement("circle", { cx: "16", cy: "14", r: "1.4", fill: color, stroke: "none" })
+    );
+  }
+  function PocketIcon({ size = 40, color = "currentColor" }) {
+    return /* @__PURE__ */ React.createElement(
+      "svg",
+      {
+        width: size,
+        height: size,
+        viewBox: "0 0 24 24",
+        fill: "none",
+        stroke: color,
+        strokeWidth: "1.6",
+        strokeLinecap: "round",
+        strokeLinejoin: "round"
+      },
+      /* @__PURE__ */ React.createElement("path", { d: "M4 4h16v11a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5V4z" }),
+      /* @__PURE__ */ React.createElement("path", { d: "M4 10c3 1.6 13 1.6 16 0" }),
+      /* @__PURE__ */ React.createElement("circle", { cx: "12", cy: "7", r: "1.8", fill: color, stroke: "none" })
+    );
+  }
+  var INK = "#EDE8E2";
+  var INK_MUTED = "#9C948C";
+  var BG = "#201E1D";
+  var SURFACE = "#2A2827";
+  var SURFACE_RAISED = "#332F2D";
+  var LINE = "#3E3936";
+  var GOLD = "#C9A227";
+  var BRAND_COLORS = {
+    "Games Workshop": "#B23A48",
+    "Vallejo": "#3D8C82",
+    "Army Painter": "#C9A227",
+    "Pro Acryl": "#D8CBB4",
+    "Turbodork": "#8A6FB0"
+  };
+  var BRAND_TEXT_ON_CHIP = {
+    "Pro Acryl": "#201E1D"
+  };
+  var DEFAULT_SECTIONS = [
+    { id: "model", label: "Model" },
+    { id: "base", label: "Base" }
+  ];
+  var CATALOGS = {
+    mini: {
+      key: "mini",
+      screenTitle: "The Shelf",
+      subtitle: "(Minis)",
+      entryLabel: "miniature",
+      addLabel: "Add miniature",
+      namePlaceholder: "Miniature name",
+      emptyMessage: "The shelf is empty. Prime your first base and add a miniature.",
+      indexKey: "project-index"
+    },
+    badge: {
+      key: "badge",
+      screenTitle: "The Pocket",
+      subtitle: "(Badge reels)",
+      entryLabel: "badge reel",
+      addLabel: "Add badge reel",
+      namePlaceholder: "Badge reel name",
+      emptyMessage: "The pocket is empty. Add your first badge reel.",
+      indexKey: "badge-index"
+    }
+  };
+  var SEED_PAINTS = [
+    // Games Workshop / Citadel
+    ["Games Workshop", "Base", "Abaddon Black"],
+    ["Games Workshop", "Base", "Corax White"],
+    ["Games Workshop", "Base", "Mephiston Red"],
+    ["Games Workshop", "Base", "Macragge Blue"],
+    ["Games Workshop", "Base", "Caledor Sky"],
+    ["Games Workshop", "Base", "Warpstone Glow"],
+    ["Games Workshop", "Base", "Death Guard Green"],
+    ["Games Workshop", "Base", "Averland Sunset"],
+    ["Games Workshop", "Base", "Zandri Dust"],
+    ["Games Workshop", "Base", "Steel Legion Drab"],
+    ["Games Workshop", "Base", "Rakarth Flesh"],
+    ["Games Workshop", "Base", "Mechanicus Standard Grey"],
+    ["Games Workshop", "Base", "Retributor Armour"],
+    ["Games Workshop", "Base", "Leadbelcher"],
+    ["Games Workshop", "Base", "Balthasar Gold"],
+    ["Games Workshop", "Base", "Screamer Pink"],
+    ["Games Workshop", "Base", "Kantor Blue"],
+    ["Games Workshop", "Shade", "Nuln Oil"],
+    ["Games Workshop", "Shade", "Agrax Earthshade"],
+    ["Games Workshop", "Shade", "Reikland Fleshshade"],
+    ["Games Workshop", "Shade", "Drakenhof Nightshade"],
+    ["Games Workshop", "Shade", "Seraphim Sepia"],
+    ["Games Workshop", "Layer", "Ushabti Bone"],
+    ["Games Workshop", "Layer", "Fenrisian Grey"],
+    ["Games Workshop", "Layer", "White Scar"],
+    ["Games Workshop", "Layer", "Ice Blue"],
+    ["Games Workshop", "Layer", "Runelord Brass"],
+    // Vallejo
+    ["Vallejo", "Model Color", "Black"],
+    ["Vallejo", "Model Color", "Off White"],
+    ["Vallejo", "Model Color", "Flat Flesh"],
+    ["Vallejo", "Model Color", "Heavy Red"],
+    ["Vallejo", "Model Color", "Sky Blue"],
+    ["Vallejo", "Model Color", "German Grey"],
+    ["Vallejo", "Model Color", "English Uniform"],
+    ["Vallejo", "Model Color", "Green Ochre"],
+    ["Vallejo", "Model Color", "Prussian Blue"],
+    ["Vallejo", "Model Color", "Burnt Umber"],
+    ["Vallejo", "Model Color", "Flat Earth"],
+    ["Vallejo", "Model Color", "Gold"],
+    ["Vallejo", "Model Color", "Silver"],
+    ["Vallejo", "Model Color", "Bronze"],
+    ["Vallejo", "Game Color", "Dead White"],
+    ["Vallejo", "Game Color", "Bloody Red"],
+    ["Vallejo", "Game Color", "Heavy Blue"],
+    ["Vallejo", "Game Color", "Elf Skin"],
+    ["Vallejo", "Game Color", "Sunny Skintone"],
+    ["Vallejo", "Game Color", "Charred Brown"],
+    ["Vallejo", "Game Color", "Livery Green"],
+    ["Vallejo", "Game Color", "Verdigris"],
+    ["Vallejo", "Game Color", "Turquoise"],
+    ["Vallejo", "Game Color", "Magic Blue"],
+    ["Vallejo", "Game Color", "Warlord Purple"],
+    ["Vallejo", "Game Color", "Gory Red"],
+    // Army Painter
+    ["Army Painter", "Fanatic", "Matt Black"],
+    ["Army Painter", "Fanatic", "Matt White"],
+    ["Army Painter", "Fanatic", "Skeleton Bone"],
+    ["Army Painter", "Fanatic", "Elven Flesh"],
+    ["Army Painter", "Fanatic", "Dragon Red"],
+    ["Army Painter", "Fanatic", "Lava Orange"],
+    ["Army Painter", "Fanatic", "Daemonic Yellow"],
+    ["Army Painter", "Fanatic", "Greedy Gold"],
+    ["Army Painter", "Fanatic", "Plate Mail Metal"],
+    ["Army Painter", "Fanatic", "Gun Metal"],
+    ["Army Painter", "Fanatic", "Crystal Blue"],
+    ["Army Painter", "Fanatic", "Ultramarine"],
+    ["Army Painter", "Fanatic", "Army Green"],
+    ["Army Painter", "Fanatic", "Goblin Green"],
+    ["Army Painter", "Speedpaint", "Wolf Grey"],
+    ["Army Painter", "Speedpaint", "Ash Grey"],
+    ["Army Painter", "Speedpaint", "Anthracite"],
+    ["Army Painter", "Speedpaint", "Blood Red"],
+    ["Army Painter", "Speedpaint", "Charred Brown"],
+    ["Army Painter", "Speedpaint", "Bonestorm"],
+    ["Army Painter", "Speedpaint", "Wildfire"],
+    ["Army Painter", "Speedpaint", "Army Green"],
+    ["Army Painter", "Speedpaint", "Crystal Blue"],
+    ["Army Painter", "Speedpaint", "Golden Tan"],
+    ["Army Painter", "Air", "Ash Black"],
+    ["Army Painter", "Air", "Matt White"],
+    ["Army Painter", "Air", "Skeleton Bone"],
+    ["Army Painter", "Air", "Ghostly Grey"],
+    ["Army Painter", "Air", "Army Green"],
+    ["Army Painter", "Air", "Ultramarine"],
+    // Pro Acryl
+    ["Pro Acryl", "Core", "Titanium White"],
+    ["Pro Acryl", "Core", "Jet Black"],
+    ["Pro Acryl", "Core", "Storm Grey"],
+    ["Pro Acryl", "Core", "Cold Grey"],
+    ["Pro Acryl", "Core", "Warm Grey"],
+    ["Pro Acryl", "Core", "Bone White"],
+    ["Pro Acryl", "Core", "Fire Red"],
+    ["Pro Acryl", "Core", "Deep Green"],
+    ["Pro Acryl", "Core", "Ultra Blue"],
+    ["Pro Acryl", "Core", "Leather Brown"],
+    ["Pro Acryl", "Core", "Bronze"],
+    ["Pro Acryl", "Core", "Gold"],
+    ["Pro Acryl", "Core", "Silver"],
+    ["Pro Acryl", "Core", "Turquoise"],
+    ["Pro Acryl", "Core", "Rust"],
+    // Turbodork
+    ["Turbodork", "Core", "Frostbite"],
+    ["Turbodork", "Core", "Rust"],
+    ["Turbodork", "Core", "Radioactive Slime"],
+    ["Turbodork", "Core", "Napalm"],
+    ["Turbodork", "Core", "Gore"],
+    ["Turbodork", "Core", "Oil Slick"],
+    ["Turbodork", "Core", "Electric Blue"],
+    ["Turbodork", "Core", "Traitor Purple"],
+    ["Turbodork", "Core", "Deceased"],
+    ["Turbodork", "Core", "Antifreeze"],
+    ["Turbodork", "Wash", "Sedition Wash"]
+  ];
+  function guessSwatchColor(name) {
+    const n = name.toLowerCase();
+    const map = [
+      [/black|abaddon|anthracite|jet|ash black/, "#1C1A19"],
+      [/white|bone|corax|skeleton|dead white|ghostly/, "#DED9CC"],
+      [/red|crimson|blood|gore|dragon|mephiston/, "#9C2B32"],
+      [/orange|lava|rust|napalm|tan|sunset/, "#C1652E"],
+      [/yellow|gold|daemonic|golden/, "#C9A227"],
+      [/green|slime|verdigris|goblin|death guard/, "#4C6B3A"],
+      [/teal|turquoise|verdigris/, "#2E7A72"],
+      [/blue|sky|ultramarine|prussian|crystal|electric|magic/, "#2C5C8A"],
+      [/purple|warlord|traitor|magic/, "#6A4C82"],
+      [/pink|screamer/, "#C46B95"],
+      [/grey|gray|storm|cold|warm|steel|drab/, "#8A857F"],
+      [/silver|metal|leadbelcher|plate mail/, "#B9B9B9"],
+      [/bronze/, "#8C6239"],
+      [/brown|umber|leather|charred|earth/, "#6B4A32"],
+      [/flesh|skin/, "#C99B77"],
+      [/sepia|earthshade|oil/, "#5A3E20"]
+    ];
+    for (const [re, hex] of map) if (re.test(n)) return hex;
+    return "#6E6A66";
+  }
+  function uid() {
+    return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+  }
+  function brandColor(brand) {
+    return BRAND_COLORS[brand] || "#8A857F";
+  }
+  function brandTextColor(brand) {
+    return BRAND_TEXT_ON_CHIP[brand] || "#201E1D";
+  }
+  function fileToResizedDataUrl(file, maxDim, quality) {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        img.onload = () => {
+          let { width, height } = img;
+          if (width > height && width > maxDim) {
+            height = Math.round(height * maxDim / width);
+            width = maxDim;
+          } else if (height > maxDim) {
+            width = Math.round(width * maxDim / height);
+            height = maxDim;
+          }
+          const canvas = document.createElement("canvas");
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext("2d");
+          ctx.drawImage(img, 0, 0, width, height);
+          resolve(canvas.toDataURL("image/jpeg", quality));
+        };
+        img.onerror = reject;
+        img.src = e.target.result;
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
     });
   }
-
-  return (
-    <div>
-      <textarea
-        ref={taRef}
-        value={value}
-        onChange={(e) => {
+  function DataLoadError({ message, onRetry, onStartFresh }) {
+    const [confirmFresh, setConfirmFresh] = useState(false);
+    return /* @__PURE__ */ React.createElement(
+      "div",
+      {
+        style: {
+          background: BG,
+          minHeight: "100vh",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          fontFamily: "Inter, sans-serif",
+          color: INK,
+          padding: 24
+        }
+      },
+      /* @__PURE__ */ React.createElement("div", { style: { maxWidth: 380 } }, /* @__PURE__ */ React.createElement("div", { style: { fontSize: 15, color: INK_MUTED, marginBottom: 20, lineHeight: 1.5 } }, message), /* @__PURE__ */ React.createElement(PrimaryBtn, { onClick: onRetry, style: { marginBottom: 12, width: "100%", justifyContent: "center" } }, "Try again"), !confirmFresh ? /* @__PURE__ */ React.createElement(
+        "button",
+        {
+          onClick: () => setConfirmFresh(true),
+          style: {
+            width: "100%",
+            background: "transparent",
+            border: `1px solid ${LINE}`,
+            color: INK_MUTED,
+            borderRadius: 10,
+            padding: "10px 16px",
+            fontSize: 13,
+            cursor: "pointer"
+          }
+        },
+        "Nothing saved yet \u2014 start fresh"
+      ) : /* @__PURE__ */ React.createElement("div", { style: { border: `1px solid ${LINE}`, borderRadius: 10, padding: 14 } }, /* @__PURE__ */ React.createElement("div", { style: { fontSize: 13, color: INK_MUTED, marginBottom: 10 } }, "Only do this if you're sure \u2014 if anything was saved before, starting fresh won't bring it back once you save again."), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 8 } }, /* @__PURE__ */ React.createElement(PrimaryBtn, { onClick: onStartFresh, style: { background: "#B23A48", color: INK } }, "Yes, start fresh"), /* @__PURE__ */ React.createElement(
+        "button",
+        {
+          onClick: () => setConfirmFresh(false),
+          style: { background: "transparent", border: `1px solid ${LINE}`, color: INK, borderRadius: 10, padding: "10px 16px", cursor: "pointer" }
+        },
+        "Cancel"
+      ))))
+    );
+  }
+  function IconBtn({ onClick, children, label, style }) {
+    return /* @__PURE__ */ React.createElement(
+      "button",
+      {
+        onClick,
+        "aria-label": label,
+        style: {
+          background: SURFACE_RAISED,
+          border: `1px solid ${LINE}`,
+          borderRadius: 10,
+          width: 40,
+          height: 40,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          color: INK,
+          cursor: "pointer",
+          flexShrink: 0,
+          ...style
+        }
+      },
+      children
+    );
+  }
+  function PrimaryBtn({ onClick, children, style, disabled }) {
+    return /* @__PURE__ */ React.createElement(
+      "button",
+      {
+        onClick,
+        disabled,
+        style: {
+          background: disabled ? "#5a5148" : GOLD,
+          color: "#201E1D",
+          border: "none",
+          borderRadius: 10,
+          padding: "10px 18px",
+          fontWeight: 700,
+          fontFamily: "Inter, sans-serif",
+          fontSize: 14,
+          cursor: disabled ? "default" : "pointer",
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          ...style
+        }
+      },
+      children
+    );
+  }
+  function BaseThumb({ src, size = 96, onClick }) {
+    return /* @__PURE__ */ React.createElement(
+      "div",
+      {
+        onClick,
+        style: {
+          width: size,
+          height: size,
+          borderRadius: "50%",
+          background: src ? `#111 url(${src}) center/cover no-repeat` : SURFACE_RAISED,
+          border: `3px solid ${LINE}`,
+          boxShadow: "0 4px 10px rgba(0,0,0,0.35), inset 0 0 0 2px #15130f",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          cursor: onClick ? "pointer" : "default",
+          flexShrink: 0
+        }
+      },
+      !src && /* @__PURE__ */ React.createElement(Camera, { size: size * 0.28, color: INK_MUTED })
+    );
+  }
+  var BRAND_NAMES = Object.keys(BRAND_COLORS);
+  function getWordBeforeCursor(value, cursor) {
+    const upto = value.slice(0, cursor);
+    const match = upto.match(/[A-Za-z']+$/);
+    return match ? match[0] : "";
+  }
+  function FreeTextPaintNotes({ value, onChange, placeholder }) {
+    const taRef = useRef(null);
+    const [cursor, setCursor] = useState(0);
+    const word = getWordBeforeCursor(value, cursor);
+    const suggestions = word.length > 0 ? BRAND_NAMES.filter((b) => b.toLowerCase().startsWith(word.toLowerCase()) && b.toLowerCase() !== word.toLowerCase()) : [];
+    function trackCursor(e) {
+      setCursor(e.target.selectionStart);
+    }
+    function applySuggestion(brand) {
+      const el = taRef.current;
+      const pos = cursor;
+      const before = value.slice(0, pos - word.length);
+      const after = value.slice(pos);
+      const next = before + brand + " " + after;
+      onChange(next);
+      const newPos = before.length + brand.length + 1;
+      requestAnimationFrame(() => {
+        el.focus();
+        el.setSelectionRange(newPos, newPos);
+        setCursor(newPos);
+      });
+    }
+    return /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement(
+      "textarea",
+      {
+        ref: taRef,
+        value,
+        onChange: (e) => {
           onChange(e.target.value);
           trackCursor(e);
-        }}
-        onKeyUp={trackCursor}
-        onClick={trackCursor}
-        placeholder={placeholder}
-        style={{
+        },
+        onKeyUp: trackCursor,
+        onClick: trackCursor,
+        placeholder,
+        style: {
           width: "100%",
           minHeight: 64,
           background: BG,
@@ -632,525 +597,438 @@ function FreeTextPaintNotes({ value, onChange, placeholder }) {
           padding: 8,
           fontSize: 16,
           resize: "vertical",
-          lineHeight: 1.5,
-        }}
-      />
-      {suggestions.length > 0 && (
-        <div style={{ display: "flex", gap: 6, marginTop: 6, flexWrap: "wrap" }}>
-          {suggestions.map((b) => (
-            <button
-              key={b}
-              onMouseDown={(e) => {
-                e.preventDefault();
-                applySuggestion(b);
-              }}
-              style={{
-                fontSize: 12,
-                fontFamily: "'JetBrains Mono', monospace",
-                color: brandTextColor(b),
-                background: brandColor(b),
-                border: "none",
-                borderRadius: 6,
-                padding: "4px 10px",
-                cursor: "pointer",
-              }}
-            >
-              {b}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-/* ---------------------------------------------------------
-   Main App
---------------------------------------------------------- */
-function App() {
-  const [catalog, setCatalog] = useState(null); // null (chooser) | "mini" | "badge"
-  const [view, setView] = useState("chooser"); // chooser | catalog | mini | locker | backup
-  const [indexes, setIndexes] = useState({ mini: [], badge: [] });
-  const [paints, setPaints] = useState([]); // full paint objects, shared across both catalogs
-  const [currentId, setCurrentId] = useState(null);
-  const [current, setCurrent] = useState(null); // full project object
-  const [loadError, setLoadError] = useState(false);
-  const [loaded, setLoaded] = useState(false);
-  // 'loading' | 'ready' | 'error' — kept separate from `loaded` so a failed
-  // read is never silently treated as "nothing saved yet."
-  const [indexStates, setIndexStates] = useState({ mini: "loading", badge: "loading" });
-  const [paintsState, setPaintsState] = useState("loading");
-  const [search, setSearch] = useState("");
-  const fileRef = useRef(null);
-  const stepFileRef = useRef({});
-
-  const index = catalog ? indexes[catalog] : [];
-  const indexState = catalog ? indexStates[catalog] : "loading";
-  const catalogConfig = catalog ? CATALOGS[catalog] : null;
-
-  async function getWithRetry(key, attempts = 3, delayMs = 500) {
-    for (let i = 0; i < attempts; i++) {
-      try {
-        return await window.storage.get(key);
-      } catch (err) {
-        if (i === attempts - 1) throw err;
-        await new Promise((r) => setTimeout(r, delayMs));
-      }
-    }
-  }
-
-  async function loadIndexFor(catKey) {
-    setIndexStates((prev) => ({ ...prev, [catKey]: "loading" }));
-    try {
-      const res = await getWithRetry(CATALOGS[catKey].indexKey);
-      setIndexes((prev) => ({ ...prev, [catKey]: res ? JSON.parse(res.value) : [] }));
-      setIndexStates((prev) => ({ ...prev, [catKey]: "ready" }));
-    } catch (err) {
-      console.error("Load index failed for", catKey, err);
-      setIndexStates((prev) => ({ ...prev, [catKey]: "error" }));
-    }
-  }
-
-  async function loadPaints() {
-    setPaintsState("loading");
-    try {
-      const res = await getWithRetry("paints");
-      setPaints(res ? JSON.parse(res.value) : []);
-      setPaintsState("ready");
-    } catch (err) {
-      console.error("Load paints failed", err);
-      setPaintsState("error");
-    }
-  }
-
-  // Explicit, user-confirmed action only — never triggered automatically.
-  // Used when a load keeps failing and the person confirms there's genuinely
-  // nothing saved yet (a brand-new setup), or when they want to reseed the
-  // default paint catalog after ruling out a real outage.
-  function startFreshIndex(catKey) {
-    setIndexes((prev) => ({ ...prev, [catKey]: [] }));
-    setIndexStates((prev) => ({ ...prev, [catKey]: "ready" }));
-  }
-
-  async function startFreshPaints() {
-    const seeded = SEED_PAINTS.map(([brand, line, name]) => ({
-      id: uid(),
-      brand,
-      line,
-      name,
-      color: guessSwatchColor(name),
-      owned: false,
-      custom: false,
-    }));
-    setPaints(seeded);
-    await window.storage.set("paints", JSON.stringify(seeded));
-    setPaintsState("ready");
-  }
-
-  // ---- initial load — both catalogs' indexes plus the shared paint locker ----
-  useEffect(() => {
-    (async () => {
-      await Promise.all([loadIndexFor("mini"), loadIndexFor("badge"), loadPaints()]);
-      setLoaded(true);
-    })();
-  }, []);
-
-  // iOS Safari sometimes leaves the page scrolled/panned to keep a focused
-  // field visible above the keyboard, and doesn't always snap back once the
-  // keyboard dismisses. Nudging a no-op scroll after focus is lost forces it
-  // to recalculate and settle back to the correct position.
-  useEffect(() => {
-    function handleFocusOut(e) {
-      const tag = e.target.tagName;
-      if (tag !== "INPUT" && tag !== "TEXTAREA") return;
-      setTimeout(() => {
-        window.scrollTo({ top: window.scrollY, left: 0 });
-        if (document.activeElement === document.body) {
-          window.scrollTo({ top: window.scrollY, left: 0, behavior: "auto" });
+          lineHeight: 1.5
         }
-      }, 100);
-    }
-    document.addEventListener("focusout", handleFocusOut);
-    return () => document.removeEventListener("focusout", handleFocusOut);
-  }, []);
-
-  function chooseCatalog(catKey) {
-    setCatalog(catKey);
-    setView("catalog");
-    setSearch("");
-  }
-
-  function backToChooser() {
-    flushProjectSave();
-    flushIndexSave();
-    setCatalog(null);
-    setView("chooser");
-  }
-
-  const paintsSaveTimer = useRef(null);
-  const pendingPaints = useRef(null);
-
-  async function persistPaintsNow(next) {
-    try {
-      await window.storage.set("paints", JSON.stringify(next));
-    } catch (err) {
-      console.error("Save paints failed", err);
-    }
-  }
-
-  function flushPaintsSave() {
-    clearTimeout(paintsSaveTimer.current);
-    const next = pendingPaints.current;
-    pendingPaints.current = null;
-    if (next) persistPaintsNow(next);
-  }
-
-  function savePaints(next) {
-    setPaints(next);
-    pendingPaints.current = next;
-    clearTimeout(paintsSaveTimer.current);
-    paintsSaveTimer.current = setTimeout(flushPaintsSave, 700);
-  }
-
-  const projectSaveTimer = useRef(null);
-  const pendingProject = useRef(null);
-  const indexSaveTimer = useRef(null);
-  const pendingIndex = useRef(null);
-  // In-memory cache of every project viewed or created this session, keyed by id.
-  // Reopening a mini you've already visited reads from here — not from storage —
-  // so a storage hiccup can't ever block navigation within a session.
-  const projectCache = useRef({});
-
-  async function persistProjectNow(proj) {
-    try {
-      const result = await window.storage.set("project:" + proj.id, JSON.stringify(proj));
-      return !!result;
-    } catch (err) {
-      console.error("Save project failed", err);
-      return false;
-    }
-  }
-
-  function flushProjectSave() {
-    clearTimeout(projectSaveTimer.current);
-    const proj = pendingProject.current;
-    pendingProject.current = null;
-    if (proj) persistProjectNow(proj);
-  }
-
-  function scheduleProjectSave(proj) {
-    pendingProject.current = proj;
-    clearTimeout(projectSaveTimer.current);
-    projectSaveTimer.current = setTimeout(flushProjectSave, 700);
-  }
-
-  async function persistIndexNow(catKey, next) {
-    try {
-      await window.storage.set(CATALOGS[catKey].indexKey, JSON.stringify(next));
-    } catch (err) {
-      console.error("Save index failed for", catKey, err);
-    }
-  }
-
-  function flushIndexSave() {
-    clearTimeout(indexSaveTimer.current);
-    const pending = pendingIndex.current;
-    pendingIndex.current = null;
-    if (pending) persistIndexNow(pending.catalog, pending.data);
-  }
-
-  function scheduleIndexSave(catKey, next) {
-    pendingIndex.current = { catalog: catKey, data: next };
-    clearTimeout(indexSaveTimer.current);
-    indexSaveTimer.current = setTimeout(flushIndexSave, 700);
-  }
-
-  // Immediate (non-debounced) index write — used for one-off actions like add/delete.
-  async function saveIndex(catKey, next) {
-    setIndexes((prev) => ({ ...prev, [catKey]: next }));
-    pendingIndex.current = null;
-    clearTimeout(indexSaveTimer.current);
-    await persistIndexNow(catKey, next);
-  }
-
-  function reorderIndex(newIdOrder) {
-    const cur = indexes[catalog];
-    const byId = Object.fromEntries(cur.map((p) => [p.id, p]));
-    const reordered = newIdOrder.map((id) => byId[id]).filter(Boolean);
-    const missing = cur.filter((p) => !newIdOrder.includes(p.id));
-    saveIndex(catalog, [...reordered, ...missing]);
-  }
-
-  // Immediate (non-debounced) project write — used for one-off actions like creation.
-  async function saveProject(proj) {
-    setCurrent(proj);
-    projectCache.current[proj.id] = proj;
-    pendingProject.current = null;
-    clearTimeout(projectSaveTimer.current);
-    return persistProjectNow(proj);
-  }
-
-  async function fetchProject(id, attempt = 0) {
-    try {
-      const res = await window.storage.get("project:" + id);
-      return res ? JSON.parse(res.value) : null;
-    } catch (err) {
-      if (attempt < 2) {
-        await new Promise((r) => setTimeout(r, 300));
-        return fetchProject(id, attempt + 1);
       }
-      throw err;
-    }
-  }
-
-  // Bundle everything — every mini's and badge reel's full data, the shared
-  // paint locker — into one downloadable file. The person's own portable
-  // copy, independent of storage, this app, or Claude entirely.
-  async function exportAllData() {
-    const projects = {};
-    for (const catKey of Object.keys(CATALOGS)) {
-      for (const entry of indexes[catKey]) {
-        const cached = projectCache.current[entry.id];
-        if (cached) {
-          projects[entry.id] = cached;
-          continue;
+    ), suggestions.length > 0 && /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 6, marginTop: 6, flexWrap: "wrap" } }, suggestions.map((b) => /* @__PURE__ */ React.createElement(
+      "button",
+      {
+        key: b,
+        onMouseDown: (e) => {
+          e.preventDefault();
+          applySuggestion(b);
+        },
+        style: {
+          fontSize: 12,
+          fontFamily: "'JetBrains Mono', monospace",
+          color: brandTextColor(b),
+          background: brandColor(b),
+          border: "none",
+          borderRadius: 6,
+          padding: "4px 10px",
+          cursor: "pointer"
         }
+      },
+      b
+    ))));
+  }
+  function App() {
+    const [catalog, setCatalog] = useState(null);
+    const [view, setView] = useState("chooser");
+    const [indexes, setIndexes] = useState({ mini: [], badge: [] });
+    const [paints, setPaints] = useState([]);
+    const [currentId, setCurrentId] = useState(null);
+    const [current, setCurrent] = useState(null);
+    const [loadError, setLoadError] = useState(false);
+    const [loaded, setLoaded] = useState(false);
+    const [indexStates, setIndexStates] = useState({ mini: "loading", badge: "loading" });
+    const [paintsState, setPaintsState] = useState("loading");
+    const [search, setSearch] = useState("");
+    const fileRef = useRef(null);
+    const stepFileRef = useRef({});
+    const index = catalog ? indexes[catalog] : [];
+    const indexState = catalog ? indexStates[catalog] : "loading";
+    const catalogConfig = catalog ? CATALOGS[catalog] : null;
+    async function getWithRetry(key, attempts = 3, delayMs = 500) {
+      for (let i = 0; i < attempts; i++) {
         try {
-          const proj = await fetchProject(entry.id);
-          if (proj) projects[entry.id] = proj;
+          return await window.storage.get(key);
         } catch (err) {
-          console.error("Export: couldn't fetch project", entry.id, err);
+          if (i === attempts - 1) throw err;
+          await new Promise((r) => setTimeout(r, delayMs));
         }
       }
     }
-    const bundle = {
-      app: "mini-tracker",
-      version: 2,
-      exportedAt: new Date().toISOString(),
-      indexes,
-      projects,
-      paints,
-    };
-    const blob = new Blob([JSON.stringify(bundle, null, 2)], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    const stamp = new Date().toISOString().slice(0, 10);
-    a.href = url;
-    a.download = `mini-tracker-backup-${stamp}.json`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  }
-
-  // Restores from a previously exported file. Overwrites current data, so
-  // the UI confirms with the person before calling this. Understands both
-  // the newer two-catalog format and the older single-catalog (minis-only)
-  // format from before The Pocket existed.
-  async function importAllData(bundle) {
-    let nextIndexes;
-    if (bundle.indexes && typeof bundle.indexes === "object") {
-      nextIndexes = {
-        mini: Array.isArray(bundle.indexes.mini) ? bundle.indexes.mini : [],
-        badge: Array.isArray(bundle.indexes.badge) ? bundle.indexes.badge : [],
-      };
-    } else {
-      // Legacy single-catalog backup — everything in it was minis.
-      nextIndexes = { mini: Array.isArray(bundle.index) ? bundle.index : [], badge: [] };
-    }
-    const nextPaints = Array.isArray(bundle.paints) ? bundle.paints : [];
-    const projects = bundle.projects && typeof bundle.projects === "object" ? bundle.projects : {};
-
-    for (const [id, proj] of Object.entries(projects)) {
-      projectCache.current[id] = proj;
-      await persistProjectNow(proj);
-    }
-    await saveIndex("mini", nextIndexes.mini);
-    await saveIndex("badge", nextIndexes.badge);
-    savePaints(nextPaints);
-    flushPaintsSave();
-  }
-
-  function openProject(id) {
-    // Make sure any edits to whatever was open before actually land first.
-    flushProjectSave();
-    flushIndexSave();
-    setCurrentId(id);
-    setView("mini");
-    setLoadError(false);
-
-    // Already seen this session — use it directly, no storage round-trip at all.
-    const cached = projectCache.current[id];
-    if (cached) {
-      setCurrent(cached);
-      return;
-    }
-
-    setCurrent(null);
-    (async () => {
+    async function loadIndexFor(catKey) {
+      setIndexStates((prev) => ({ ...prev, [catKey]: "loading" }));
       try {
-        const proj = await fetchProject(id);
-        if (proj) {
-          projectCache.current[id] = proj;
-          setCurrent(proj);
-        } else {
+        const res = await getWithRetry(CATALOGS[catKey].indexKey);
+        setIndexes((prev) => ({ ...prev, [catKey]: res ? JSON.parse(res.value) : [] }));
+        setIndexStates((prev) => ({ ...prev, [catKey]: "ready" }));
+      } catch (err) {
+        console.error("Load index failed for", catKey, err);
+        setIndexStates((prev) => ({ ...prev, [catKey]: "error" }));
+      }
+    }
+    async function loadPaints() {
+      setPaintsState("loading");
+      try {
+        const res = await getWithRetry("paints");
+        setPaints(res ? JSON.parse(res.value) : []);
+        setPaintsState("ready");
+      } catch (err) {
+        console.error("Load paints failed", err);
+        setPaintsState("error");
+      }
+    }
+    function startFreshIndex(catKey) {
+      setIndexes((prev) => ({ ...prev, [catKey]: [] }));
+      setIndexStates((prev) => ({ ...prev, [catKey]: "ready" }));
+    }
+    async function startFreshPaints() {
+      const seeded = SEED_PAINTS.map(([brand, line, name]) => ({
+        id: uid(),
+        brand,
+        line,
+        name,
+        color: guessSwatchColor(name),
+        owned: false,
+        custom: false
+      }));
+      setPaints(seeded);
+      await window.storage.set("paints", JSON.stringify(seeded));
+      setPaintsState("ready");
+    }
+    useEffect(() => {
+      (async () => {
+        await Promise.all([loadIndexFor("mini"), loadIndexFor("badge"), loadPaints()]);
+        setLoaded(true);
+      })();
+    }, []);
+    useEffect(() => {
+      function handleFocusOut(e) {
+        const tag = e.target.tagName;
+        if (tag !== "INPUT" && tag !== "TEXTAREA") return;
+        setTimeout(() => {
+          window.scrollTo({ top: window.scrollY, left: 0 });
+          if (document.activeElement === document.body) {
+            window.scrollTo({ top: window.scrollY, left: 0, behavior: "auto" });
+          }
+        }, 100);
+      }
+      document.addEventListener("focusout", handleFocusOut);
+      return () => document.removeEventListener("focusout", handleFocusOut);
+    }, []);
+    function chooseCatalog(catKey) {
+      setCatalog(catKey);
+      setView("catalog");
+      setSearch("");
+    }
+    function backToChooser() {
+      flushProjectSave();
+      flushIndexSave();
+      setCatalog(null);
+      setView("chooser");
+    }
+    const paintsSaveTimer = useRef(null);
+    const pendingPaints = useRef(null);
+    async function persistPaintsNow(next) {
+      try {
+        await window.storage.set("paints", JSON.stringify(next));
+      } catch (err) {
+        console.error("Save paints failed", err);
+      }
+    }
+    function flushPaintsSave() {
+      clearTimeout(paintsSaveTimer.current);
+      const next = pendingPaints.current;
+      pendingPaints.current = null;
+      if (next) persistPaintsNow(next);
+    }
+    function savePaints(next) {
+      setPaints(next);
+      pendingPaints.current = next;
+      clearTimeout(paintsSaveTimer.current);
+      paintsSaveTimer.current = setTimeout(flushPaintsSave, 700);
+    }
+    const projectSaveTimer = useRef(null);
+    const pendingProject = useRef(null);
+    const indexSaveTimer = useRef(null);
+    const pendingIndex = useRef(null);
+    const projectCache = useRef({});
+    async function persistProjectNow(proj) {
+      try {
+        const result = await window.storage.set("project:" + proj.id, JSON.stringify(proj));
+        return !!result;
+      } catch (err) {
+        console.error("Save project failed", err);
+        return false;
+      }
+    }
+    function flushProjectSave() {
+      clearTimeout(projectSaveTimer.current);
+      const proj = pendingProject.current;
+      pendingProject.current = null;
+      if (proj) persistProjectNow(proj);
+    }
+    function scheduleProjectSave(proj) {
+      pendingProject.current = proj;
+      clearTimeout(projectSaveTimer.current);
+      projectSaveTimer.current = setTimeout(flushProjectSave, 700);
+    }
+    async function persistIndexNow(catKey, next) {
+      try {
+        await window.storage.set(CATALOGS[catKey].indexKey, JSON.stringify(next));
+      } catch (err) {
+        console.error("Save index failed for", catKey, err);
+      }
+    }
+    function flushIndexSave() {
+      clearTimeout(indexSaveTimer.current);
+      const pending = pendingIndex.current;
+      pendingIndex.current = null;
+      if (pending) persistIndexNow(pending.catalog, pending.data);
+    }
+    function scheduleIndexSave(catKey, next) {
+      pendingIndex.current = { catalog: catKey, data: next };
+      clearTimeout(indexSaveTimer.current);
+      indexSaveTimer.current = setTimeout(flushIndexSave, 700);
+    }
+    async function saveIndex(catKey, next) {
+      setIndexes((prev) => ({ ...prev, [catKey]: next }));
+      pendingIndex.current = null;
+      clearTimeout(indexSaveTimer.current);
+      await persistIndexNow(catKey, next);
+    }
+    function reorderIndex(newIdOrder) {
+      const cur = indexes[catalog];
+      const byId = Object.fromEntries(cur.map((p) => [p.id, p]));
+      const reordered = newIdOrder.map((id) => byId[id]).filter(Boolean);
+      const missing = cur.filter((p) => !newIdOrder.includes(p.id));
+      saveIndex(catalog, [...reordered, ...missing]);
+    }
+    async function saveProject(proj) {
+      setCurrent(proj);
+      projectCache.current[proj.id] = proj;
+      pendingProject.current = null;
+      clearTimeout(projectSaveTimer.current);
+      return persistProjectNow(proj);
+    }
+    async function fetchProject(id, attempt = 0) {
+      try {
+        const res = await window.storage.get("project:" + id);
+        return res ? JSON.parse(res.value) : null;
+      } catch (err) {
+        if (attempt < 2) {
+          await new Promise((r) => setTimeout(r, 300));
+          return fetchProject(id, attempt + 1);
+        }
+        throw err;
+      }
+    }
+    async function exportAllData() {
+      const projects = {};
+      for (const catKey of Object.keys(CATALOGS)) {
+        for (const entry of indexes[catKey]) {
+          const cached = projectCache.current[entry.id];
+          if (cached) {
+            projects[entry.id] = cached;
+            continue;
+          }
+          try {
+            const proj = await fetchProject(entry.id);
+            if (proj) projects[entry.id] = proj;
+          } catch (err) {
+            console.error("Export: couldn't fetch project", entry.id, err);
+          }
+        }
+      }
+      const bundle = {
+        app: "mini-tracker",
+        version: 2,
+        exportedAt: (/* @__PURE__ */ new Date()).toISOString(),
+        indexes,
+        projects,
+        paints
+      };
+      const blob = new Blob([JSON.stringify(bundle, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      const stamp = (/* @__PURE__ */ new Date()).toISOString().slice(0, 10);
+      a.href = url;
+      a.download = `mini-tracker-backup-${stamp}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+    async function importAllData(bundle) {
+      let nextIndexes;
+      if (bundle.indexes && typeof bundle.indexes === "object") {
+        nextIndexes = {
+          mini: Array.isArray(bundle.indexes.mini) ? bundle.indexes.mini : [],
+          badge: Array.isArray(bundle.indexes.badge) ? bundle.indexes.badge : []
+        };
+      } else {
+        nextIndexes = { mini: Array.isArray(bundle.index) ? bundle.index : [], badge: [] };
+      }
+      const nextPaints = Array.isArray(bundle.paints) ? bundle.paints : [];
+      const projects = bundle.projects && typeof bundle.projects === "object" ? bundle.projects : {};
+      for (const [id, proj] of Object.entries(projects)) {
+        projectCache.current[id] = proj;
+        await persistProjectNow(proj);
+      }
+      await saveIndex("mini", nextIndexes.mini);
+      await saveIndex("badge", nextIndexes.badge);
+      savePaints(nextPaints);
+      flushPaintsSave();
+    }
+    function openProject(id) {
+      flushProjectSave();
+      flushIndexSave();
+      setCurrentId(id);
+      setView("mini");
+      setLoadError(false);
+      const cached = projectCache.current[id];
+      if (cached) {
+        setCurrent(cached);
+        return;
+      }
+      setCurrent(null);
+      (async () => {
+        try {
+          const proj = await fetchProject(id);
+          if (proj) {
+            projectCache.current[id] = proj;
+            setCurrent(proj);
+          } else {
+            setLoadError(true);
+          }
+        } catch (err) {
+          console.error("Load project failed", err);
           setLoadError(true);
         }
+      })();
+    }
+    async function createProject() {
+      const id = uid();
+      const proj = {
+        id,
+        catalog,
+        name: "",
+        notes: "",
+        thumbnail: null,
+        sections: DEFAULT_SECTIONS.map((s) => ({ ...s })),
+        steps: []
+      };
+      await saveProject(proj);
+      const nextIndex = [{ id, name: proj.name, thumbnail: null }, ...indexes[catalog]];
+      await saveIndex(catalog, nextIndex);
+      setCurrentId(id);
+      setView("mini");
+    }
+    async function deleteProject(id) {
+      const nextIndex = indexes[catalog].filter((p) => p.id !== id);
+      await saveIndex(catalog, nextIndex);
+      delete projectCache.current[id];
+      try {
+        await window.storage.delete("project:" + id);
       } catch (err) {
-        console.error("Load project failed", err);
-        setLoadError(true);
       }
-    })();
-  }
-
-  async function createProject() {
-    const id = uid();
-    const proj = {
-      id,
-      catalog,
-      name: "",
-      notes: "",
-      thumbnail: null,
-      sections: DEFAULT_SECTIONS.map((s) => ({ ...s })),
-      steps: [],
-    };
-    await saveProject(proj);
-    const nextIndex = [{ id, name: proj.name, thumbnail: null }, ...indexes[catalog]];
-    await saveIndex(catalog, nextIndex);
-    setCurrentId(id);
-    setView("mini");
-  }
-
-  async function deleteProject(id) {
-    const nextIndex = indexes[catalog].filter((p) => p.id !== id);
-    await saveIndex(catalog, nextIndex);
-    delete projectCache.current[id];
-    try {
-      await window.storage.delete("project:" + id);
-    } catch (err) {
-      // ignore — best effort
+      if (currentId === id) {
+        setView("catalog");
+        setCurrent(null);
+        setCurrentId(null);
+      }
     }
-    if (currentId === id) {
-      setView("catalog");
-      setCurrent(null);
-      setCurrentId(null);
+    function updateCurrent(patch) {
+      const next = { ...current, ...patch };
+      setCurrent(next);
+      projectCache.current[next.id] = next;
+      scheduleProjectSave(next);
+      if (patch.name !== void 0 || patch.thumbnail !== void 0) {
+        const cat = current.catalog || "mini";
+        const nextIndex = indexes[cat].map(
+          (p) => p.id === current.id ? { ...p, name: patch.name ?? p.name, thumbnail: patch.thumbnail ?? p.thumbnail } : p
+        );
+        setIndexes((prev) => ({ ...prev, [cat]: nextIndex }));
+        scheduleIndexSave(cat, nextIndex);
+      }
     }
-  }
-
-  function updateCurrent(patch) {
-    const next = { ...current, ...patch };
-    setCurrent(next);
-    projectCache.current[next.id] = next;
-    scheduleProjectSave(next);
-    if (patch.name !== undefined || patch.thumbnail !== undefined) {
-      const cat = current.catalog || "mini";
-      const nextIndex = indexes[cat].map((p) =>
-        p.id === current.id
-          ? { ...p, name: patch.name ?? p.name, thumbnail: patch.thumbnail ?? p.thumbnail }
-          : p
+    async function handleThumbUpload(e) {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      const dataUrl = await fileToResizedDataUrl(file, 400, 0.7);
+      await updateCurrent({ thumbnail: dataUrl });
+    }
+    async function handleStepPhoto(stepId, file) {
+      if (!file) return;
+      const dataUrl = await fileToResizedDataUrl(file, 500, 0.65);
+      const steps = current.steps.map((s) => s.id === stepId ? { ...s, photo: dataUrl } : s);
+      await updateCurrent({ steps });
+    }
+    function addStep(section) {
+      const steps = [
+        ...current.steps,
+        { id: uid(), section, title: "", photo: null, notes: "" }
+      ];
+      updateCurrent({ steps });
+    }
+    function updateStep(stepId, patch) {
+      const steps = current.steps.map((s) => s.id === stepId ? { ...s, ...patch } : s);
+      updateCurrent({ steps });
+    }
+    function removeStep(stepId) {
+      const steps = current.steps.filter((s) => s.id !== stepId);
+      updateCurrent({ steps });
+    }
+    function addSection(label) {
+      const existing = current.sections || DEFAULT_SECTIONS;
+      const sections = [...existing, { id: uid(), label }];
+      updateCurrent({ sections });
+    }
+    function renameSection(id, label) {
+      const existing = current.sections || DEFAULT_SECTIONS;
+      const sections = existing.map((s) => s.id === id ? { ...s, label } : s);
+      updateCurrent({ sections });
+    }
+    function removeSection(id) {
+      const existing = current.sections || DEFAULT_SECTIONS;
+      const sections = existing.filter((s) => s.id !== id);
+      const steps = current.steps.filter((s) => s.section !== id);
+      updateCurrent({ sections, steps });
+    }
+    const filteredIndex = useMemo(() => {
+      if (!catalog) return [];
+      const list = indexes[catalog];
+      if (!search.trim()) return list;
+      const s = search.toLowerCase();
+      return list.filter((p) => p.name.toLowerCase().includes(s));
+    }, [indexes, catalog, search]);
+    if (!loaded) {
+      return /* @__PURE__ */ React.createElement("div", { style: { background: BG, minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", color: INK_MUTED, fontFamily: "Inter, sans-serif" } }, "Loading the workbench\u2026");
+    }
+    if (view === "catalog" && indexState === "error") {
+      return /* @__PURE__ */ React.createElement(
+        DataLoadError,
+        {
+          message: `Couldn't load your saved ${catalogConfig.entryLabel}s. Your data is very likely still there \u2014 this is just a connection hiccup. Please retry rather than starting fresh if you have anything saved.`,
+          onRetry: () => loadIndexFor(catalog),
+          onStartFresh: () => startFreshIndex(catalog)
+        }
       );
-      setIndexes((prev) => ({ ...prev, [cat]: nextIndex }));
-      scheduleIndexSave(cat, nextIndex);
     }
-  }
-
-  async function handleThumbUpload(e) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const dataUrl = await fileToResizedDataUrl(file, 400, 0.7);
-    await updateCurrent({ thumbnail: dataUrl });
-  }
-
-  async function handleStepPhoto(stepId, file) {
-    if (!file) return;
-    const dataUrl = await fileToResizedDataUrl(file, 500, 0.65);
-    const steps = current.steps.map((s) => (s.id === stepId ? { ...s, photo: dataUrl } : s));
-    await updateCurrent({ steps });
-  }
-
-  function addStep(section) {
-    const steps = [
-      ...current.steps,
-      { id: uid(), section, title: "", photo: null, notes: "" },
-    ];
-    updateCurrent({ steps });
-  }
-
-  function updateStep(stepId, patch) {
-    const steps = current.steps.map((s) => (s.id === stepId ? { ...s, ...patch } : s));
-    updateCurrent({ steps });
-  }
-
-  function removeStep(stepId) {
-    const steps = current.steps.filter((s) => s.id !== stepId);
-    updateCurrent({ steps });
-  }
-
-  function addSection(label) {
-    const existing = current.sections || DEFAULT_SECTIONS;
-    const sections = [...existing, { id: uid(), label }];
-    updateCurrent({ sections });
-  }
-
-  function renameSection(id, label) {
-    const existing = current.sections || DEFAULT_SECTIONS;
-    const sections = existing.map((s) => (s.id === id ? { ...s, label } : s));
-    updateCurrent({ sections });
-  }
-
-  function removeSection(id) {
-    const existing = current.sections || DEFAULT_SECTIONS;
-    const sections = existing.filter((s) => s.id !== id);
-    const steps = current.steps.filter((s) => s.section !== id);
-    updateCurrent({ sections, steps });
-  }
-
-  const filteredIndex = useMemo(() => {
-    if (!catalog) return [];
-    const list = indexes[catalog];
-    if (!search.trim()) return list;
-    const s = search.toLowerCase();
-    return list.filter((p) => p.name.toLowerCase().includes(s));
-  }, [indexes, catalog, search]);
-
-  if (!loaded) {
-    return (
-      <div style={{ background: BG, minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", color: INK_MUTED, fontFamily: "Inter, sans-serif" }}>
-        Loading the workbench…
-      </div>
-    );
-  }
-
-  if (view === "catalog" && indexState === "error") {
-    return (
-      <DataLoadError
-        message={`Couldn't load your saved ${catalogConfig.entryLabel}s. Your data is very likely still there — this is just a connection hiccup. Please retry rather than starting fresh if you have anything saved.`}
-        onRetry={() => loadIndexFor(catalog)}
-        onStartFresh={() => startFreshIndex(catalog)}
-      />
-    );
-  }
-
-  if (view === "locker" && paintsState === "error") {
-    return (
-      <DataLoadError
-        message="Couldn't load your paint locker. Your saved paints are very likely still there — this is just a connection hiccup. Please retry rather than starting fresh if you've added any."
-        onRetry={loadPaints}
-        onStartFresh={startFreshPaints}
-      />
-    );
-  }
-
-  return (
-    <div
-      style={{
-        background: BG,
-        minHeight: "100vh",
-        fontFamily: "Inter, sans-serif",
-        color: INK,
-      }}
-    >
-      <style>{`
+    if (view === "locker" && paintsState === "error") {
+      return /* @__PURE__ */ React.createElement(
+        DataLoadError,
+        {
+          message: "Couldn't load your paint locker. Your saved paints are very likely still there \u2014 this is just a connection hiccup. Please retry rather than starting fresh if you've added any.",
+          onRetry: loadPaints,
+          onStartFresh: startFreshPaints
+        }
+      );
+    }
+    return /* @__PURE__ */ React.createElement(
+      "div",
+      {
+        style: {
+          background: BG,
+          minHeight: "100vh",
+          fontFamily: "Inter, sans-serif",
+          color: INK
+        }
+      },
+      /* @__PURE__ */ React.createElement("style", null, `
         * { box-sizing: border-box; }
         input, textarea { font-family: 'Inter', sans-serif; }
         input:focus, textarea:focus, button:focus-visible {
@@ -1162,106 +1040,103 @@ function App() {
         @media (prefers-reduced-motion: reduce) {
           * { transition: none !important; animation: none !important; }
         }
-      `}</style>
-
-      {view === "chooser" && (
-        <ChooserView
-          miniCount={indexes.mini.length}
-          badgeCount={indexes.badge.length}
-          onChoose={chooseCatalog}
-        />
-      )}
-
-      {view === "catalog" && (
-        <CatalogView
-          config={catalogConfig}
-          index={filteredIndex}
-          search={search}
-          setSearch={setSearch}
-          onOpen={openProject}
-          onCreate={createProject}
-          onOpenLocker={() => setView("locker")}
-          onOpenBackup={() => setView("backup")}
-          onReorder={reorderIndex}
-          onSwitchCatalog={backToChooser}
-        />
-      )}
-
-      {view === "mini" && (
-        <MiniView
-          config={catalogConfig || CATALOGS[current?.catalog || "mini"]}
-          project={current}
-          loadError={loadError}
-          onRetry={() => openProject(currentId)}
-          onBack={() => {
+      `),
+      view === "chooser" && /* @__PURE__ */ React.createElement(
+        ChooserView,
+        {
+          miniCount: indexes.mini.length,
+          badgeCount: indexes.badge.length,
+          onChoose: chooseCatalog
+        }
+      ),
+      view === "catalog" && /* @__PURE__ */ React.createElement(
+        CatalogView,
+        {
+          config: catalogConfig,
+          index: filteredIndex,
+          search,
+          setSearch,
+          onOpen: openProject,
+          onCreate: createProject,
+          onOpenLocker: () => setView("locker"),
+          onOpenBackup: () => setView("backup"),
+          onReorder: reorderIndex,
+          onSwitchCatalog: backToChooser
+        }
+      ),
+      view === "mini" && /* @__PURE__ */ React.createElement(
+        MiniView,
+        {
+          config: catalogConfig || CATALOGS[current?.catalog || "mini"],
+          project: current,
+          loadError,
+          onRetry: () => openProject(currentId),
+          onBack: () => {
             flushProjectSave();
             flushIndexSave();
             setView("catalog");
-          }}
-          onUpdate={updateCurrent}
-          onThumbUpload={handleThumbUpload}
-          fileRef={fileRef}
-          onAddStep={addStep}
-          onUpdateStep={updateStep}
-          onRemoveStep={removeStep}
-          onStepPhoto={handleStepPhoto}
-          onAddSection={addSection}
-          onRenameSection={renameSection}
-          onRemoveSection={removeSection}
-          onDelete={() => deleteProject(current.id)}
-        />
-      )}
-
-      {view === "locker" && (
-        <LockerView
-          paints={paints}
-          onBack={() => {
+          },
+          onUpdate: updateCurrent,
+          onThumbUpload: handleThumbUpload,
+          fileRef,
+          onAddStep: addStep,
+          onUpdateStep: updateStep,
+          onRemoveStep: removeStep,
+          onStepPhoto: handleStepPhoto,
+          onAddSection: addSection,
+          onRenameSection: renameSection,
+          onRemoveSection: removeSection,
+          onDelete: () => deleteProject(current.id)
+        }
+      ),
+      view === "locker" && /* @__PURE__ */ React.createElement(
+        LockerView,
+        {
+          paints,
+          onBack: () => {
             flushPaintsSave();
             setView(catalog ? "catalog" : "chooser");
-          }}
-          onSave={savePaints}
-        />
-      )}
-
-      {view === "backup" && (
-        <BackupView
-          miniCount={indexes.mini.length}
-          badgeCount={indexes.badge.length}
-          paintCount={paints.length}
-          onBack={() => setView(catalog ? "catalog" : "chooser")}
-          onExport={exportAllData}
-          onImport={importAllData}
-        />
-      )}
-    </div>
-  );
-}
-
-/* ---------------------------------------------------------
-   Chooser — the very first screen: pick a catalog
---------------------------------------------------------- */
-function ChooserView({ miniCount, badgeCount, onChoose }) {
-  const tiles = [
-    { key: "mini", Icon: ShelfIcon, title: "The Shelf", subtitle: "(Minis)", count: miniCount },
-    { key: "badge", Icon: PocketIcon, title: "The Pocket", subtitle: "(Badge reels)", count: badgeCount },
-  ];
-  return (
-    <div
-      style={{
-        minHeight: "100vh",
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: 24,
-        gap: 20,
-      }}
-    >
-      {tiles.map(({ key, Icon, title, subtitle, count }) => (
-        <button
-          key={key}
-          onClick={() => onChoose(key)}
-          style={{
+          },
+          onSave: savePaints
+        }
+      ),
+      view === "backup" && /* @__PURE__ */ React.createElement(
+        BackupView,
+        {
+          miniCount: indexes.mini.length,
+          badgeCount: indexes.badge.length,
+          paintCount: paints.length,
+          onBack: () => setView(catalog ? "catalog" : "chooser"),
+          onExport: exportAllData,
+          onImport: importAllData
+        }
+      )
+    );
+  }
+  function ChooserView({ miniCount, badgeCount, onChoose }) {
+    const tiles = [
+      { key: "mini", Icon: ShelfIcon, title: "The Shelf", subtitle: "(Minis)", count: miniCount },
+      { key: "badge", Icon: PocketIcon, title: "The Pocket", subtitle: "(Badge reels)", count: badgeCount }
+    ];
+    return /* @__PURE__ */ React.createElement(
+      "div",
+      {
+        style: {
+          minHeight: "100vh",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: 24,
+          gap: 20
+        }
+      },
+      tiles.map(({ key, Icon: Icon2, title, subtitle, count }) => /* @__PURE__ */ React.createElement(
+        "button",
+        {
+          key,
+          onClick: () => onChoose(key),
+          style: {
             width: "100%",
             maxWidth: 340,
             background: SURFACE,
@@ -1272,11 +1147,13 @@ function ChooserView({ miniCount, badgeCount, onChoose }) {
             alignItems: "center",
             gap: 18,
             cursor: "pointer",
-            textAlign: "left",
-          }}
-        >
-          <div
-            style={{
+            textAlign: "left"
+          }
+        },
+        /* @__PURE__ */ React.createElement(
+          "div",
+          {
+            style: {
               width: 64,
               height: 64,
               borderRadius: "50%",
@@ -1286,444 +1163,349 @@ function ChooserView({ miniCount, badgeCount, onChoose }) {
               alignItems: "center",
               justifyContent: "center",
               color: GOLD,
-              flexShrink: 0,
-            }}
-          >
-            <Icon size={30} />
-          </div>
-          <div>
-            <div
-              style={{
-                fontFamily: "'Barlow Condensed', sans-serif",
-                fontWeight: 800,
-                fontSize: 26,
-                textTransform: "uppercase",
-                letterSpacing: 1,
-                color: INK,
-              }}
-            >
-              {title}
-            </div>
-            <div style={{ fontSize: 13, color: INK_MUTED }}>
-              {subtitle} · {count} saved
-            </div>
-          </div>
-        </button>
-      ))}
-    </div>
-  );
-}
-
-/* ---------------------------------------------------------
-   Shelf (home) view
---------------------------------------------------------- */
-function CatalogView({ config, index, search, setSearch, onOpen, onCreate, onOpenLocker, onOpenBackup, onReorder, onSwitchCatalog }) {
-  const [rearranging, setRearranging] = useState(false);
-  const [liveOrder, setLiveOrder] = useState(null); // array of ids, only set while rearranging
-  const [draggingId, setDraggingId] = useState(null);
-  const [dragPos, setDragPos] = useState({ x: 0, y: 0 });
-  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
-  const [dragSize, setDragSize] = useState({ w: 96, h: 128 });
-
-  const cardRefs = useRef({});
-  const longPressTimer = useRef(null);
-  const pressStart = useRef({ x: 0, y: 0 });
-  const movedTooMuch = useRef(false);
-  const pressTriggeredDrag = useRef(false);
-
-  const canRearrange = !search.trim();
-
-  const displayIndex = useMemo(() => {
-    if (!rearranging || !liveOrder) return index;
-    const byId = Object.fromEntries(index.map((p) => [p.id, p]));
-    return liveOrder.map((id) => byId[id]).filter(Boolean);
-  }, [rearranging, liveOrder, index]);
-
-  function enterRearrange(id, x, y) {
-    pressTriggeredDrag.current = true;
-    setRearranging(true);
-    setLiveOrder(index.map((p) => p.id));
-    setDraggingId(id);
-    setDragPos({ x, y });
-    const node = cardRefs.current[id];
-    if (node) {
-      const rect = node.getBoundingClientRect();
-      setDragOffset({ x: x - rect.left, y: y - rect.top });
-      setDragSize({ w: rect.width, h: rect.height });
-    }
-    if (navigator.vibrate) navigator.vibrate(15);
+              flexShrink: 0
+            }
+          },
+          /* @__PURE__ */ React.createElement(Icon2, { size: 30 })
+        ),
+        /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement(
+          "div",
+          {
+            style: {
+              fontFamily: "'Barlow Condensed', sans-serif",
+              fontWeight: 800,
+              fontSize: 26,
+              textTransform: "uppercase",
+              letterSpacing: 1,
+              color: INK
+            }
+          },
+          title
+        ), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 13, color: INK_MUTED } }, subtitle, " \xB7 ", count, " saved"))
+      ))
+    );
   }
-
-  function updateDragPosition(clientX, clientY, activeId) {
-    setDragPos({ x: clientX, y: clientY });
-    let closestId = null;
-    let closestDist = Infinity;
-    for (const [id, node] of Object.entries(cardRefs.current)) {
-      if (id === activeId || !node) continue;
-      const rect = node.getBoundingClientRect();
-      const dist = Math.hypot(clientX - (rect.left + rect.width / 2), clientY - (rect.top + rect.height / 2));
-      if (dist < closestDist) {
-        closestDist = dist;
-        closestId = id;
+  function CatalogView({ config, index, search, setSearch, onOpen, onCreate, onOpenLocker, onOpenBackup, onReorder, onSwitchCatalog }) {
+    const [rearranging, setRearranging] = useState(false);
+    const [liveOrder, setLiveOrder] = useState(null);
+    const [draggingId, setDraggingId] = useState(null);
+    const [dragPos, setDragPos] = useState({ x: 0, y: 0 });
+    const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
+    const [dragSize, setDragSize] = useState({ w: 96, h: 128 });
+    const cardRefs = useRef({});
+    const longPressTimer = useRef(null);
+    const pressStart = useRef({ x: 0, y: 0 });
+    const movedTooMuch = useRef(false);
+    const pressTriggeredDrag = useRef(false);
+    const canRearrange = !search.trim();
+    const displayIndex = useMemo(() => {
+      if (!rearranging || !liveOrder) return index;
+      const byId = Object.fromEntries(index.map((p) => [p.id, p]));
+      return liveOrder.map((id) => byId[id]).filter(Boolean);
+    }, [rearranging, liveOrder, index]);
+    function enterRearrange(id, x, y) {
+      pressTriggeredDrag.current = true;
+      setRearranging(true);
+      setLiveOrder(index.map((p) => p.id));
+      setDraggingId(id);
+      setDragPos({ x, y });
+      const node = cardRefs.current[id];
+      if (node) {
+        const rect = node.getBoundingClientRect();
+        setDragOffset({ x: x - rect.left, y: y - rect.top });
+        setDragSize({ w: rect.width, h: rect.height });
+      }
+      if (navigator.vibrate) navigator.vibrate(15);
+    }
+    function updateDragPosition(clientX, clientY, activeId) {
+      setDragPos({ x: clientX, y: clientY });
+      let closestId = null;
+      let closestDist = Infinity;
+      for (const [id, node] of Object.entries(cardRefs.current)) {
+        if (id === activeId || !node) continue;
+        const rect = node.getBoundingClientRect();
+        const dist = Math.hypot(clientX - (rect.left + rect.width / 2), clientY - (rect.top + rect.height / 2));
+        if (dist < closestDist) {
+          closestDist = dist;
+          closestId = id;
+        }
+      }
+      if (closestId && closestDist < 75) {
+        setLiveOrder((prev) => {
+          const from = prev.indexOf(activeId);
+          const to = prev.indexOf(closestId);
+          if (from === -1 || to === -1 || from === to) return prev;
+          const next = prev.slice();
+          next.splice(from, 1);
+          next.splice(to, 0, activeId);
+          return next;
+        });
       }
     }
-    if (closestId && closestDist < 75) {
-      setLiveOrder((prev) => {
-        const from = prev.indexOf(activeId);
-        const to = prev.indexOf(closestId);
-        if (from === -1 || to === -1 || from === to) return prev;
-        const next = prev.slice();
-        next.splice(from, 1);
-        next.splice(to, 0, activeId);
-        return next;
-      });
-    }
-  }
-
-  useEffect(() => {
-    if (!draggingId) return;
-    const activeId = draggingId;
-    function onMove(e) {
-      updateDragPosition(e.clientX, e.clientY, activeId);
-    }
-    function onUp() {
-      setDraggingId(null);
-      setLiveOrder((current) => {
-        if (current) onReorder(current);
-        return current;
-      });
-    }
-    document.addEventListener("pointermove", onMove);
-    document.addEventListener("pointerup", onUp);
-    document.addEventListener("pointercancel", onUp);
-    return () => {
-      document.removeEventListener("pointermove", onMove);
-      document.removeEventListener("pointerup", onUp);
-      document.removeEventListener("pointercancel", onUp);
-    };
-  }, [draggingId]);
-
-  function handlePointerDown(e, id) {
-    if (!canRearrange) return;
-    e.currentTarget.setPointerCapture?.(e.pointerId);
-    pressStart.current = { x: e.clientX, y: e.clientY };
-    movedTooMuch.current = false;
-    pressTriggeredDrag.current = false;
-    clearTimeout(longPressTimer.current);
-    longPressTimer.current = setTimeout(() => {
-      if (!movedTooMuch.current) enterRearrange(id, e.clientX, e.clientY);
-    }, 450);
-  }
-
-  function handlePointerMove(e) {
-    const dx = e.clientX - pressStart.current.x;
-    const dy = e.clientY - pressStart.current.y;
-    if (Math.hypot(dx, dy) > 10) {
-      movedTooMuch.current = true;
+    useEffect(() => {
+      if (!draggingId) return;
+      const activeId = draggingId;
+      function onMove(e) {
+        updateDragPosition(e.clientX, e.clientY, activeId);
+      }
+      function onUp() {
+        setDraggingId(null);
+        setLiveOrder((current) => {
+          if (current) onReorder(current);
+          return current;
+        });
+      }
+      document.addEventListener("pointermove", onMove);
+      document.addEventListener("pointerup", onUp);
+      document.addEventListener("pointercancel", onUp);
+      return () => {
+        document.removeEventListener("pointermove", onMove);
+        document.removeEventListener("pointerup", onUp);
+        document.removeEventListener("pointercancel", onUp);
+      };
+    }, [draggingId]);
+    function handlePointerDown(e, id) {
+      if (!canRearrange) return;
+      e.currentTarget.setPointerCapture?.(e.pointerId);
+      pressStart.current = { x: e.clientX, y: e.clientY };
+      movedTooMuch.current = false;
+      pressTriggeredDrag.current = false;
       clearTimeout(longPressTimer.current);
+      longPressTimer.current = setTimeout(() => {
+        if (!movedTooMuch.current) enterRearrange(id, e.clientX, e.clientY);
+      }, 450);
     }
-  }
-
-  function handlePointerUp(id) {
-    clearTimeout(longPressTimer.current);
-    if (!pressTriggeredDrag.current && !movedTooMuch.current) {
-      onOpen(id);
+    function handlePointerMove(e) {
+      const dx = e.clientX - pressStart.current.x;
+      const dy = e.clientY - pressStart.current.y;
+      if (Math.hypot(dx, dy) > 10) {
+        movedTooMuch.current = true;
+        clearTimeout(longPressTimer.current);
+      }
     }
-  }
-
-  function finishRearranging() {
-    setRearranging(false);
-    setLiveOrder(null);
-    setDraggingId(null);
-  }
-
-  return (
-    <div style={{ maxWidth: 720, margin: "0 auto", padding: "28px 20px 60px" }}>
-      <style>{`
+    function handlePointerUp(id) {
+      clearTimeout(longPressTimer.current);
+      if (!pressTriggeredDrag.current && !movedTooMuch.current) {
+        onOpen(id);
+      }
+    }
+    function finishRearranging() {
+      setRearranging(false);
+      setLiveOrder(null);
+      setDraggingId(null);
+    }
+    return /* @__PURE__ */ React.createElement("div", { style: { maxWidth: 720, margin: "0 auto", padding: "28px 20px 60px" } }, /* @__PURE__ */ React.createElement("style", null, `
         @keyframes shelfJiggle {
           0% { transform: rotate(-1.2deg); }
           50% { transform: rotate(1.2deg); }
           100% { transform: rotate(-1.2deg); }
         }
         .shelf-jiggle { animation: shelfJiggle 0.28s ease-in-out infinite; }
-      `}</style>
-
-      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
-        <IconBtn onClick={onSwitchCatalog} label="Switch catalog">
-          <ArrowLeft size={18} />
-        </IconBtn>
-        <h1
-          style={{
-            fontFamily: "'Barlow Condensed', sans-serif",
-            fontWeight: 800,
-            fontSize: 30,
-            letterSpacing: 1,
-            textTransform: "uppercase",
-            margin: 0,
-            flex: 1,
-          }}
-        >
-          {config.screenTitle}
-        </h1>
-        {rearranging && (
-          <PrimaryBtn onClick={finishRearranging} style={{ padding: "8px 16px", fontSize: 13 }}>
-            Done
-          </PrimaryBtn>
-        )}
-      </div>
-      <p style={{ color: INK_MUTED, marginTop: 4, marginBottom: 22, fontSize: 14 }}>
-        {rearranging
-          ? "Drag to reorder, then tap Done."
-          : `${index.length} ${config.entryLabel}${index.length === 1 ? "" : "s"} on display`}
-      </p>
-
-      {!rearranging && (
-        <div style={{ display: "flex", gap: 10, marginBottom: 26 }}>
-          <div
-            style={{
-              flex: 1,
+      `), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 10, marginBottom: 4 } }, /* @__PURE__ */ React.createElement(IconBtn, { onClick: onSwitchCatalog, label: "Switch catalog" }, /* @__PURE__ */ React.createElement(ArrowLeft, { size: 18 })), /* @__PURE__ */ React.createElement(
+      "h1",
+      {
+        style: {
+          fontFamily: "'Barlow Condensed', sans-serif",
+          fontWeight: 800,
+          fontSize: 30,
+          letterSpacing: 1,
+          textTransform: "uppercase",
+          margin: 0,
+          flex: 1
+        }
+      },
+      config.screenTitle
+    ), rearranging && /* @__PURE__ */ React.createElement(PrimaryBtn, { onClick: finishRearranging, style: { padding: "8px 16px", fontSize: 13 } }, "Done")), /* @__PURE__ */ React.createElement("p", { style: { color: INK_MUTED, marginTop: 4, marginBottom: 22, fontSize: 14 } }, rearranging ? "Drag to reorder, then tap Done." : `${index.length} ${config.entryLabel}${index.length === 1 ? "" : "s"} on display`), !rearranging && /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 10, marginBottom: 26 } }, /* @__PURE__ */ React.createElement(
+      "div",
+      {
+        style: {
+          flex: 1,
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          background: SURFACE,
+          border: `1px solid ${LINE}`,
+          borderRadius: 10,
+          padding: "10px 14px"
+        }
+      },
+      /* @__PURE__ */ React.createElement(Search, { size: 16, color: INK_MUTED }),
+      /* @__PURE__ */ React.createElement(
+        "input",
+        {
+          value: search,
+          onChange: (e) => setSearch(e.target.value),
+          placeholder: `Find a ${config.entryLabel} by name\u2026`,
+          style: { background: "transparent", border: "none", outline: "none", color: INK, fontSize: 16, width: "100%" }
+        }
+      )
+    ), /* @__PURE__ */ React.createElement(IconBtn, { onClick: onCreate, label: config.addLabel }, /* @__PURE__ */ React.createElement(Plus, { size: 18 })), /* @__PURE__ */ React.createElement(IconBtn, { onClick: onOpenLocker, label: "Paint locker" }, /* @__PURE__ */ React.createElement(Palette, { size: 18 })), /* @__PURE__ */ React.createElement(IconBtn, { onClick: onOpenBackup, label: "Backup and restore" }, /* @__PURE__ */ React.createElement(Download, { size: 18 }))), index.length === 0 ? /* @__PURE__ */ React.createElement(
+      "div",
+      {
+        style: {
+          textAlign: "center",
+          padding: "60px 20px",
+          color: INK_MUTED,
+          border: `1px dashed ${LINE}`,
+          borderRadius: 14
+        }
+      },
+      /* @__PURE__ */ React.createElement("div", { style: { fontSize: 15, marginBottom: 14 } }, config.emptyMessage),
+      /* @__PURE__ */ React.createElement(PrimaryBtn, { onClick: onCreate, style: { margin: "0 auto" } }, /* @__PURE__ */ React.createElement(Plus, { size: 16 }), " ", config.addLabel)
+    ) : /* @__PURE__ */ React.createElement(
+      "div",
+      {
+        style: {
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fill, minmax(104px, 1fr))",
+          gap: 20
+        }
+      },
+      displayIndex.map((p) => {
+        const isDragging = draggingId === p.id;
+        return /* @__PURE__ */ React.createElement(
+          "div",
+          {
+            key: p.id,
+            ref: (node) => {
+              cardRefs.current[p.id] = node;
+            },
+            onPointerDown: (e) => handlePointerDown(e, p.id),
+            onPointerMove: handlePointerMove,
+            onPointerUp: () => handlePointerUp(p.id),
+            className: rearranging && !isDragging ? "shelf-jiggle" : "",
+            style: {
               display: "flex",
+              flexDirection: "column",
               alignItems: "center",
               gap: 8,
-              background: SURFACE,
-              border: `1px solid ${LINE}`,
-              borderRadius: 10,
-              padding: "10px 14px",
-            }}
-          >
-            <Search size={16} color={INK_MUTED} />
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder={`Find a ${config.entryLabel} by name…`}
-              style={{ background: "transparent", border: "none", outline: "none", color: INK, fontSize: 16, width: "100%" }}
-            />
-          </div>
-          <IconBtn onClick={onCreate} label={config.addLabel}>
-            <Plus size={18} />
-          </IconBtn>
-          <IconBtn onClick={onOpenLocker} label="Paint locker">
-            <Palette size={18} />
-          </IconBtn>
-          <IconBtn onClick={onOpenBackup} label="Backup and restore">
-            <Download size={18} />
-          </IconBtn>
-        </div>
-      )}
-
-      {index.length === 0 ? (
-        <div
-          style={{
-            textAlign: "center",
-            padding: "60px 20px",
-            color: INK_MUTED,
-            border: `1px dashed ${LINE}`,
-            borderRadius: 14,
-          }}
-        >
-          <div style={{ fontSize: 15, marginBottom: 14 }}>{config.emptyMessage}</div>
-          <PrimaryBtn onClick={onCreate} style={{ margin: "0 auto" }}>
-            <Plus size={16} /> {config.addLabel}
-          </PrimaryBtn>
-        </div>
-      ) : (
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fill, minmax(104px, 1fr))",
-            gap: 20,
-          }}
-        >
-          {displayIndex.map((p) => {
-            const isDragging = draggingId === p.id;
-            return (
-              <div
-                key={p.id}
-                ref={(node) => {
-                  cardRefs.current[p.id] = node;
-                }}
-                onPointerDown={(e) => handlePointerDown(e, p.id)}
-                onPointerMove={handlePointerMove}
-                onPointerUp={() => handlePointerUp(p.id)}
-                className={rearranging && !isDragging ? "shelf-jiggle" : ""}
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  alignItems: "center",
-                  gap: 8,
-                  touchAction: canRearrange ? "none" : "auto",
-                  visibility: isDragging ? "hidden" : "visible",
-                }}
-              >
-                <BaseThumb src={p.thumbnail} />
-                <div
-                  style={{
-                    fontSize: 12,
-                    color: INK,
-                    textAlign: "center",
-                    maxWidth: 110,
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    whiteSpace: "nowrap",
-                  }}
-                >
-                  {p.name || "Untitled"}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      {draggingId && (
-        <div
-          style={{
-            position: "fixed",
-            left: dragPos.x - dragOffset.x,
-            top: dragPos.y - dragOffset.y,
-            width: dragSize.w,
-            height: dragSize.h,
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            gap: 8,
-            pointerEvents: "none",
-            zIndex: 1000,
-            transform: "scale(1.08)",
-            filter: "drop-shadow(0 8px 16px rgba(0,0,0,0.5))",
-          }}
-        >
-          <BaseThumb src={(index.find((p) => p.id === draggingId) || {}).thumbnail} />
-          <div style={{ fontSize: 12, color: INK, textAlign: "center", maxWidth: 110 }}>
-            {(index.find((p) => p.id === draggingId) || {}).name || "Untitled"}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-/* ---------------------------------------------------------
-   Mini detail view
---------------------------------------------------------- */
-function MiniView({
-  config,
-  project,
-  loadError,
-  onRetry,
-  onBack,
-  onUpdate,
-  onThumbUpload,
-  fileRef,
-  onAddStep,
-  onUpdateStep,
-  onRemoveStep,
-  onStepPhoto,
-  onAddSection,
-  onRenameSection,
-  onRemoveSection,
-  onDelete,
-}) {
-  const [confirmDelete, setConfirmDelete] = useState(false);
-
-  if (loadError) {
-    return (
-      <div style={{ maxWidth: 640, margin: "0 auto", padding: 20 }}>
-        <IconBtn onClick={onBack} label="Back" style={{ marginBottom: 20 }}>
-          <ArrowLeft size={18} />
-        </IconBtn>
-        <div style={{ color: INK_MUTED, fontSize: 14, marginBottom: 14 }}>
-          This {config.entryLabel} didn't load. Your data is likely still there — try again.
-        </div>
-        <PrimaryBtn onClick={onRetry}>Try again</PrimaryBtn>
-      </div>
-    );
+              touchAction: canRearrange ? "none" : "auto",
+              visibility: isDragging ? "hidden" : "visible"
+            }
+          },
+          /* @__PURE__ */ React.createElement(BaseThumb, { src: p.thumbnail }),
+          /* @__PURE__ */ React.createElement(
+            "div",
+            {
+              style: {
+                fontSize: 12,
+                color: INK,
+                textAlign: "center",
+                maxWidth: 110,
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap"
+              }
+            },
+            p.name || "Untitled"
+          )
+        );
+      })
+    ), draggingId && /* @__PURE__ */ React.createElement(
+      "div",
+      {
+        style: {
+          position: "fixed",
+          left: dragPos.x - dragOffset.x,
+          top: dragPos.y - dragOffset.y,
+          width: dragSize.w,
+          height: dragSize.h,
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          gap: 8,
+          pointerEvents: "none",
+          zIndex: 1e3,
+          transform: "scale(1.08)",
+          filter: "drop-shadow(0 8px 16px rgba(0,0,0,0.5))"
+        }
+      },
+      /* @__PURE__ */ React.createElement(BaseThumb, { src: (index.find((p) => p.id === draggingId) || {}).thumbnail }),
+      /* @__PURE__ */ React.createElement("div", { style: { fontSize: 12, color: INK, textAlign: "center", maxWidth: 110 } }, (index.find((p) => p.id === draggingId) || {}).name || "Untitled")
+    ));
   }
-
-  if (!project) {
-    return (
-      <div style={{ maxWidth: 640, margin: "0 auto", padding: 20, color: INK_MUTED }}>
-        Loading…
-      </div>
-    );
-  }
-
-  return (
-    <div style={{ maxWidth: 640, margin: "0 auto", padding: "20px 20px 80px" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 22 }}>
-        <IconBtn onClick={onBack} label="Back">
-          <ArrowLeft size={18} />
-        </IconBtn>
-        <div style={{ flex: 1 }} />
-        <IconBtn onClick={() => setConfirmDelete(true)} label={`Delete ${config.entryLabel}`}>
-          <Trash2 size={16} />
-        </IconBtn>
-      </div>
-
-      {confirmDelete && (
-        <div
-          style={{
-            background: SURFACE,
-            border: `1px solid ${LINE}`,
-            borderRadius: 12,
-            padding: 16,
-            marginBottom: 18,
-          }}
-        >
-          <div style={{ fontSize: 14, marginBottom: 12 }}>
-            Remove "{project.name}" from {config.screenTitle}? This can't be undone.
-          </div>
-          <div style={{ display: "flex", gap: 10 }}>
-            <PrimaryBtn onClick={onDelete} style={{ background: "#B23A48", color: INK }}>
-              Delete
-            </PrimaryBtn>
-            <button
-              onClick={() => setConfirmDelete(false)}
-              style={{ background: "transparent", border: `1px solid ${LINE}`, color: INK, borderRadius: 10, padding: "10px 16px", cursor: "pointer" }}
-            >
-              Cancel
-            </button>
-          </div>
-        </div>
-      )}
-
-      <div style={{ display: "flex", gap: 18, alignItems: "center", marginBottom: 22 }}>
-        <div style={{ position: "relative" }}>
-          <BaseThumb src={project.thumbnail} size={92} onClick={() => fileRef.current?.click()} />
-          <input
-            ref={fileRef}
-            type="file"
-            accept="image/*"
-            style={{ display: "none" }}
-            onChange={onThumbUpload}
-          />
-        </div>
-        <input
-          value={project.name}
-          onChange={(e) => onUpdate({ name: e.target.value })}
-          placeholder={config.namePlaceholder}
-          style={{
-            flex: 1,
-            background: "transparent",
-            border: "none",
-            borderBottom: `2px solid ${LINE}`,
-            color: INK,
-            fontFamily: "'Barlow Condensed', sans-serif",
-            fontWeight: 700,
-            fontSize: 26,
-            textTransform: "uppercase",
-            letterSpacing: 0.5,
-            padding: "6px 0",
-            outline: "none",
-          }}
-        />
-      </div>
-
-      <textarea
-        value={project.notes}
-        onChange={(e) => onUpdate({ notes: e.target.value })}
-        placeholder={`General notes about this ${config.entryLabel}…`}
-        style={{
+  function MiniView({
+    config,
+    project,
+    loadError,
+    onRetry,
+    onBack,
+    onUpdate,
+    onThumbUpload,
+    fileRef,
+    onAddStep,
+    onUpdateStep,
+    onRemoveStep,
+    onStepPhoto,
+    onAddSection,
+    onRenameSection,
+    onRemoveSection,
+    onDelete
+  }) {
+    const [confirmDelete, setConfirmDelete] = useState(false);
+    if (loadError) {
+      return /* @__PURE__ */ React.createElement("div", { style: { maxWidth: 640, margin: "0 auto", padding: 20 } }, /* @__PURE__ */ React.createElement(IconBtn, { onClick: onBack, label: "Back", style: { marginBottom: 20 } }, /* @__PURE__ */ React.createElement(ArrowLeft, { size: 18 })), /* @__PURE__ */ React.createElement("div", { style: { color: INK_MUTED, fontSize: 14, marginBottom: 14 } }, "This ", config.entryLabel, " didn't load. Your data is likely still there \u2014 try again."), /* @__PURE__ */ React.createElement(PrimaryBtn, { onClick: onRetry }, "Try again"));
+    }
+    if (!project) {
+      return /* @__PURE__ */ React.createElement("div", { style: { maxWidth: 640, margin: "0 auto", padding: 20, color: INK_MUTED } }, "Loading\u2026");
+    }
+    return /* @__PURE__ */ React.createElement("div", { style: { maxWidth: 640, margin: "0 auto", padding: "20px 20px 80px" } }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 12, marginBottom: 22 } }, /* @__PURE__ */ React.createElement(IconBtn, { onClick: onBack, label: "Back" }, /* @__PURE__ */ React.createElement(ArrowLeft, { size: 18 })), /* @__PURE__ */ React.createElement("div", { style: { flex: 1 } }), /* @__PURE__ */ React.createElement(IconBtn, { onClick: () => setConfirmDelete(true), label: `Delete ${config.entryLabel}` }, /* @__PURE__ */ React.createElement(Trash2, { size: 16 }))), confirmDelete && /* @__PURE__ */ React.createElement(
+      "div",
+      {
+        style: {
+          background: SURFACE,
+          border: `1px solid ${LINE}`,
+          borderRadius: 12,
+          padding: 16,
+          marginBottom: 18
+        }
+      },
+      /* @__PURE__ */ React.createElement("div", { style: { fontSize: 14, marginBottom: 12 } }, 'Remove "', project.name, '" from ', config.screenTitle, "? This can't be undone."),
+      /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 10 } }, /* @__PURE__ */ React.createElement(PrimaryBtn, { onClick: onDelete, style: { background: "#B23A48", color: INK } }, "Delete"), /* @__PURE__ */ React.createElement(
+        "button",
+        {
+          onClick: () => setConfirmDelete(false),
+          style: { background: "transparent", border: `1px solid ${LINE}`, color: INK, borderRadius: 10, padding: "10px 16px", cursor: "pointer" }
+        },
+        "Cancel"
+      ))
+    ), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 18, alignItems: "center", marginBottom: 22 } }, /* @__PURE__ */ React.createElement("div", { style: { position: "relative" } }, /* @__PURE__ */ React.createElement(BaseThumb, { src: project.thumbnail, size: 92, onClick: () => fileRef.current?.click() }), /* @__PURE__ */ React.createElement(
+      "input",
+      {
+        ref: fileRef,
+        type: "file",
+        accept: "image/*",
+        style: { display: "none" },
+        onChange: onThumbUpload
+      }
+    )), /* @__PURE__ */ React.createElement(
+      "input",
+      {
+        value: project.name,
+        onChange: (e) => onUpdate({ name: e.target.value }),
+        placeholder: config.namePlaceholder,
+        style: {
+          flex: 1,
+          background: "transparent",
+          border: "none",
+          borderBottom: `2px solid ${LINE}`,
+          color: INK,
+          fontFamily: "'Barlow Condensed', sans-serif",
+          fontWeight: 700,
+          fontSize: 26,
+          textTransform: "uppercase",
+          letterSpacing: 0.5,
+          padding: "6px 0",
+          outline: "none"
+        }
+      }
+    )), /* @__PURE__ */ React.createElement(
+      "textarea",
+      {
+        value: project.notes,
+        onChange: (e) => onUpdate({ notes: e.target.value }),
+        placeholder: `General notes about this ${config.entryLabel}\u2026`,
+        style: {
           width: "100%",
           minHeight: 60,
           background: SURFACE,
@@ -1733,901 +1515,716 @@ function MiniView({
           padding: 12,
           fontSize: 16,
           resize: "vertical",
-          marginBottom: 26,
-        }}
-      />
-
-      {(project.sections || DEFAULT_SECTIONS).map((sec) => {
-        // Steps saved before sections existed have no `section` — treat them as Model.
-        const sectionSteps = project.steps.filter((s) => (s.section || "model") === sec.id);
-        return (
-          <SectionBlock
-            key={sec.id}
-            section={sec}
-            steps={sectionSteps}
-            onAddStep={() => onAddStep(sec.id)}
-            onUpdateStep={onUpdateStep}
-            onRemoveStep={onRemoveStep}
-            onStepPhoto={onStepPhoto}
-            onRename={(label) => onRenameSection(sec.id, label)}
-            onRemoveSection={() => onRemoveSection(sec.id)}
-          />
-        );
-      })}
-
-      <AddSectionControl onAdd={onAddSection} />
-    </div>
-  );
-}
-
-function SectionBlock({ section, steps, onAddStep, onUpdateStep, onRemoveStep, onStepPhoto, onRename, onRemoveSection }) {
-  const [editingLabel, setEditingLabel] = useState(false);
-  const [labelVal, setLabelVal] = useState(section.label);
-  const [confirmRemove, setConfirmRemove] = useState(false);
-
-  function commitLabel() {
-    setEditingLabel(false);
-    if (labelVal.trim() && labelVal !== section.label) onRename(labelVal.trim());
-    else setLabelVal(section.label);
+          marginBottom: 26
+        }
+      }
+    ), (project.sections || DEFAULT_SECTIONS).map((sec) => {
+      const sectionSteps = project.steps.filter((s) => (s.section || "model") === sec.id);
+      return /* @__PURE__ */ React.createElement(
+        SectionBlock,
+        {
+          key: sec.id,
+          section: sec,
+          steps: sectionSteps,
+          onAddStep: () => onAddStep(sec.id),
+          onUpdateStep,
+          onRemoveStep,
+          onStepPhoto,
+          onRename: (label) => onRenameSection(sec.id, label),
+          onRemoveSection: () => onRemoveSection(sec.id)
+        }
+      );
+    }), /* @__PURE__ */ React.createElement(AddSectionControl, { onAdd: onAddSection }));
   }
-
-  return (
-    <div style={{ marginBottom: 30 }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14, gap: 8 }}>
-        {editingLabel ? (
-          <input
-            autoFocus
-            value={labelVal}
-            onChange={(e) => setLabelVal(e.target.value)}
-            onFocus={(e) => e.target.select()}
-            onBlur={commitLabel}
-            onKeyDown={(e) => e.key === "Enter" && commitLabel()}
-            style={{
-              flex: 1,
-              background: "transparent",
-              border: "none",
-              borderBottom: `2px solid ${LINE}`,
-              color: INK,
-              fontFamily: "'Barlow Condensed', sans-serif",
-              fontWeight: 700,
-              fontSize: 20,
-              textTransform: "uppercase",
-              letterSpacing: 1,
-              outline: "none",
-            }}
-          />
-        ) : (
-          <h2
-            onClick={() => setEditingLabel(true)}
-            style={{
-              fontFamily: "'Barlow Condensed', sans-serif",
-              fontWeight: 700,
-              fontSize: 20,
-              textTransform: "uppercase",
-              letterSpacing: 1,
-              margin: 0,
-              color: INK_MUTED,
-              cursor: "pointer",
-              flex: 1,
-            }}
-          >
-            {section.label}
-          </h2>
-        )}
-        <PrimaryBtn onClick={onAddStep}>
-          <Plus size={15} /> Add step
-        </PrimaryBtn>
-        <IconBtn onClick={() => setConfirmRemove(true)} label="Remove division" style={{ width: 32, height: 32 }}>
-          <Trash2 size={14} />
-        </IconBtn>
-      </div>
-
-      {confirmRemove && (
-        <div style={{ background: SURFACE, border: `1px solid ${LINE}`, borderRadius: 10, padding: 12, marginBottom: 14 }}>
-          <div style={{ fontSize: 13, marginBottom: 10, color: INK }}>
-            Remove "{section.label}"{steps.length > 0 ? ` and its ${steps.length} step${steps.length === 1 ? "" : "s"}` : ""}?
-          </div>
-          <div style={{ display: "flex", gap: 8 }}>
-            <PrimaryBtn onClick={onRemoveSection} style={{ background: "#B23A48", color: INK }}>
-              Remove
-            </PrimaryBtn>
-            <button
-              onClick={() => setConfirmRemove(false)}
-              style={{ background: "transparent", border: `1px solid ${LINE}`, color: INK, borderRadius: 10, padding: "10px 16px", cursor: "pointer" }}
-            >
-              Cancel
-            </button>
-          </div>
-        </div>
-      )}
-
-      {steps.length === 0 && (
-        <div style={{ color: INK_MUTED, fontSize: 14, padding: "6px 0 20px" }}>
-          No steps yet in {section.label}.
-        </div>
-      )}
-
-      <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-        {steps.map((step, i) => (
-          <StepCard
-            key={step.id}
-            index={i + 1}
-            step={step}
-            onUpdate={(patch) => onUpdateStep(step.id, patch)}
-            onRemove={() => onRemoveStep(step.id)}
-            onPhoto={(file) => onStepPhoto(step.id, file)}
-          />
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function AddSectionControl({ onAdd }) {
-  const [open, setOpen] = useState(false);
-  const [val, setVal] = useState("");
-
-  function submit() {
-    if (!val.trim()) return;
-    onAdd(val.trim());
-    setVal("");
-    setOpen(false);
-  }
-
-  if (!open) {
-    return (
-      <button
-        onClick={() => setOpen(true)}
-        style={{
-          width: "100%",
+  function SectionBlock({ section, steps, onAddStep, onUpdateStep, onRemoveStep, onStepPhoto, onRename, onRemoveSection }) {
+    const [editingLabel, setEditingLabel] = useState(false);
+    const [labelVal, setLabelVal] = useState(section.label);
+    const [confirmRemove, setConfirmRemove] = useState(false);
+    function commitLabel() {
+      setEditingLabel(false);
+      if (labelVal.trim() && labelVal !== section.label) onRename(labelVal.trim());
+      else setLabelVal(section.label);
+    }
+    return /* @__PURE__ */ React.createElement("div", { style: { marginBottom: 30 } }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14, gap: 8 } }, editingLabel ? /* @__PURE__ */ React.createElement(
+      "input",
+      {
+        autoFocus: true,
+        value: labelVal,
+        onChange: (e) => setLabelVal(e.target.value),
+        onFocus: (e) => e.target.select(),
+        onBlur: commitLabel,
+        onKeyDown: (e) => e.key === "Enter" && commitLabel(),
+        style: {
+          flex: 1,
           background: "transparent",
-          border: `1px dashed ${LINE}`,
+          border: "none",
+          borderBottom: `2px solid ${LINE}`,
+          color: INK,
+          fontFamily: "'Barlow Condensed', sans-serif",
+          fontWeight: 700,
+          fontSize: 20,
+          textTransform: "uppercase",
+          letterSpacing: 1,
+          outline: "none"
+        }
+      }
+    ) : /* @__PURE__ */ React.createElement(
+      "h2",
+      {
+        onClick: () => setEditingLabel(true),
+        style: {
+          fontFamily: "'Barlow Condensed', sans-serif",
+          fontWeight: 700,
+          fontSize: 20,
+          textTransform: "uppercase",
+          letterSpacing: 1,
+          margin: 0,
           color: INK_MUTED,
-          borderRadius: 10,
-          padding: "12px 16px",
-          fontSize: 14,
           cursor: "pointer",
-          marginTop: 4,
-        }}
-      >
-        + Add another division
-      </button>
-    );
+          flex: 1
+        }
+      },
+      section.label
+    ), /* @__PURE__ */ React.createElement(PrimaryBtn, { onClick: onAddStep }, /* @__PURE__ */ React.createElement(Plus, { size: 15 }), " Add step"), /* @__PURE__ */ React.createElement(IconBtn, { onClick: () => setConfirmRemove(true), label: "Remove division", style: { width: 32, height: 32 } }, /* @__PURE__ */ React.createElement(Trash2, { size: 14 }))), confirmRemove && /* @__PURE__ */ React.createElement("div", { style: { background: SURFACE, border: `1px solid ${LINE}`, borderRadius: 10, padding: 12, marginBottom: 14 } }, /* @__PURE__ */ React.createElement("div", { style: { fontSize: 13, marginBottom: 10, color: INK } }, 'Remove "', section.label, '"', steps.length > 0 ? ` and its ${steps.length} step${steps.length === 1 ? "" : "s"}` : "", "?"), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 8 } }, /* @__PURE__ */ React.createElement(PrimaryBtn, { onClick: onRemoveSection, style: { background: "#B23A48", color: INK } }, "Remove"), /* @__PURE__ */ React.createElement(
+      "button",
+      {
+        onClick: () => setConfirmRemove(false),
+        style: { background: "transparent", border: `1px solid ${LINE}`, color: INK, borderRadius: 10, padding: "10px 16px", cursor: "pointer" }
+      },
+      "Cancel"
+    ))), steps.length === 0 && /* @__PURE__ */ React.createElement("div", { style: { color: INK_MUTED, fontSize: 14, padding: "6px 0 20px" } }, "No steps yet in ", section.label, "."), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 14 } }, steps.map((step, i) => /* @__PURE__ */ React.createElement(
+      StepCard,
+      {
+        key: step.id,
+        index: i + 1,
+        step,
+        onUpdate: (patch) => onUpdateStep(step.id, patch),
+        onRemove: () => onRemoveStep(step.id),
+        onPhoto: (file) => onStepPhoto(step.id, file)
+      }
+    ))));
   }
-
-  return (
-    <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
-      <input
-        autoFocus
-        value={val}
-        onChange={(e) => setVal(e.target.value)}
-        onKeyDown={(e) => e.key === "Enter" && submit()}
-        placeholder="Division name — e.g. Fox, Familiar, Banner"
-        style={{
+  function AddSectionControl({ onAdd }) {
+    const [open, setOpen] = useState(false);
+    const [val, setVal] = useState("");
+    function submit() {
+      if (!val.trim()) return;
+      onAdd(val.trim());
+      setVal("");
+      setOpen(false);
+    }
+    if (!open) {
+      return /* @__PURE__ */ React.createElement(
+        "button",
+        {
+          onClick: () => setOpen(true),
+          style: {
+            width: "100%",
+            background: "transparent",
+            border: `1px dashed ${LINE}`,
+            color: INK_MUTED,
+            borderRadius: 10,
+            padding: "12px 16px",
+            fontSize: 14,
+            cursor: "pointer",
+            marginTop: 4
+          }
+        },
+        "+ Add another division"
+      );
+    }
+    return /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 8, marginTop: 4 } }, /* @__PURE__ */ React.createElement(
+      "input",
+      {
+        autoFocus: true,
+        value: val,
+        onChange: (e) => setVal(e.target.value),
+        onKeyDown: (e) => e.key === "Enter" && submit(),
+        placeholder: "Division name \u2014 e.g. Fox, Familiar, Banner",
+        style: {
           flex: 1,
           background: SURFACE,
           border: `1px solid ${LINE}`,
           color: INK,
           borderRadius: 10,
           padding: "10px 12px",
-          fontSize: 16,
-        }}
-      />
-      <PrimaryBtn onClick={submit} disabled={!val.trim()}>
-        Add
-      </PrimaryBtn>
-      <button
-        onClick={() => {
+          fontSize: 16
+        }
+      }
+    ), /* @__PURE__ */ React.createElement(PrimaryBtn, { onClick: submit, disabled: !val.trim() }, "Add"), /* @__PURE__ */ React.createElement(
+      "button",
+      {
+        onClick: () => {
           setOpen(false);
           setVal("");
-        }}
-        style={{ background: "transparent", border: `1px solid ${LINE}`, color: INK, borderRadius: 10, padding: "0 16px", cursor: "pointer" }}
-      >
-        Cancel
-      </button>
-    </div>
-  );
-}
-
-function StepCard({ index, step, onUpdate, onRemove, onPhoto }) {
-  const photoRef = useRef(null);
-
-  return (
-    <div style={{ background: SURFACE, border: `1px solid ${LINE}`, borderRadius: 14, padding: 16 }}>
-      <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
-        <div
-          style={{
-            width: 30,
-            height: 30,
-            borderRadius: "50%",
-            background: BG,
-            border: `1px solid ${LINE}`,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            fontFamily: "'JetBrains Mono', monospace",
-            fontSize: 13,
-            color: GOLD,
-            flexShrink: 0,
-            marginTop: 2,
-          }}
-        >
-          {index}
-        </div>
-        <div style={{ flex: 1 }}>
-          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-            <input
-              value={step.title}
-              onChange={(e) => onUpdate({ title: e.target.value })}
-              placeholder="Step name — e.g. Pants, Cloak, Skin"
-              style={{
-                flex: 1,
-                background: "transparent",
-                border: "none",
-                color: INK,
-                fontWeight: 600,
-                fontSize: 16,
-                outline: "none",
-              }}
-            />
-            <IconBtn onClick={onRemove} label="Remove step" style={{ width: 32, height: 32 }}>
-              <X size={14} />
-            </IconBtn>
-          </div>
-
-          <div style={{ display: "flex", gap: 12, marginTop: 10, alignItems: "flex-start" }}>
-            <div
-              onClick={() => photoRef.current?.click()}
-              style={{
-                width: 64,
-                height: 64,
-                borderRadius: 8,
-                background: step.photo ? `#111 url(${step.photo}) center/cover no-repeat` : SURFACE_RAISED,
-                border: `1px solid ${LINE}`,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                cursor: "pointer",
-                flexShrink: 0,
-              }}
-            >
-              {!step.photo && <Camera size={20} color={INK_MUTED} />}
-            </div>
-            <input
-              ref={photoRef}
-              type="file"
-              accept="image/*"
-              style={{ display: "none" }}
-              onChange={(e) => e.target.files?.[0] && onPhoto(e.target.files[0])}
-            />
-
-            <div style={{ flex: 1 }}>
-              <FreeTextPaintNotes
-                value={step.notes}
-                onChange={(v) => onUpdate({ notes: v })}
-                placeholder=""
-              />
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/* ---------------------------------------------------------
-   Paint Locker (catalog) view
---------------------------------------------------------- */
-function LockerView({ paints, onBack, onSave }) {
-  const [q, setQ] = useState("");
-  const [ownedOnly, setOwnedOnly] = useState(false);
-  const [newName, setNewName] = useState("");
-  const [newBrand, setNewBrand] = useState(Object.keys(BRAND_COLORS)[0]);
-  const [bulkOpen, setBulkOpen] = useState(false);
-  const [bulkBrand, setBulkBrand] = useState(Object.keys(BRAND_COLORS)[0]);
-  const [bulkLine, setBulkLine] = useState("");
-  const [bulkText, setBulkText] = useState("");
-
-  const brands = useMemo(() => {
-    const set = new Set(paints.map((p) => p.brand));
-    return Array.from(set).sort((a, b) => a.localeCompare(b));
-  }, [paints]);
-
-  const brandOptions = useMemo(() => {
-    const set = new Set([...Object.keys(BRAND_COLORS), ...paints.map((p) => p.brand)]);
-    return Array.from(set);
-  }, [paints]);
-
-  const filtered = useMemo(() => {
-    let pool = paints;
-    if (ownedOnly) pool = pool.filter((p) => p.owned);
-    if (!q.trim()) return pool;
-    const s = q.toLowerCase();
-    return pool.filter(
-      (p) =>
-        p.name.toLowerCase().includes(s) ||
-        p.brand.toLowerCase().includes(s) ||
-        (p.line || "").toLowerCase().includes(s)
-    );
-  }, [paints, q, ownedOnly]);
-
-  function toggleOwned(id) {
-    onSave(paints.map((p) => (p.id === id ? { ...p, owned: !p.owned } : p)));
+        },
+        style: { background: "transparent", border: `1px solid ${LINE}`, color: INK, borderRadius: 10, padding: "0 16px", cursor: "pointer" }
+      },
+      "Cancel"
+    ));
   }
-
-  function renamePaint(id, name) {
-    onSave(paints.map((p) => (p.id === id ? { ...p, name } : p)));
-  }
-
-  function deletePaint(id) {
-    onSave(paints.filter((p) => p.id !== id));
-  }
-
-  function addCustom() {
-    if (!newName.trim() || !newBrand.trim()) return;
-    const paint = {
-      id: uid(),
-      brand: newBrand.trim(),
-      line: "Custom",
-      name: newName.trim(),
-      color: guessSwatchColor(newName),
-      owned: true,
-      custom: true,
-    };
-    onSave([paint, ...paints]);
-    setNewName("");
-  }
-
-  // Paste a list (one paint per line — dashes/bullets are stripped) and add
-  // them all at once. Re-pasting an updated list skips anything already in
-  // the locker for that brand, so it's safe to run again after a new release.
-  const bulkLines = useMemo(() => {
-    return bulkText
-      .split(/\r?\n/)
-      .map((l) => l.replace(/^[\s\-*•\u2022]+/, "").trim())
-      .filter(Boolean);
-  }, [bulkText]);
-
-  const bulkNewCount = useMemo(() => {
-    if (!bulkBrand.trim()) return 0;
-    const existingKeys = new Set(paints.map((p) => (p.brand + "|" + p.name).toLowerCase()));
-    let count = 0;
-    for (const name of bulkLines) {
-      if (!existingKeys.has((bulkBrand.trim() + "|" + name).toLowerCase())) count++;
-    }
-    return count;
-  }, [bulkLines, bulkBrand, paints]);
-
-  function bulkImport() {
-    if (!bulkBrand.trim() || bulkLines.length === 0) return;
-    const existingKeys = new Set(paints.map((p) => (p.brand + "|" + p.name).toLowerCase()));
-    const additions = [];
-    for (const name of bulkLines) {
-      const key = (bulkBrand.trim() + "|" + name).toLowerCase();
-      if (existingKeys.has(key)) continue;
-      existingKeys.add(key);
-      additions.push({
-        id: uid(),
-        brand: bulkBrand.trim(),
-        line: bulkLine.trim() || "Imported",
-        name,
-        color: guessSwatchColor(name),
-        owned: false,
-        custom: true,
-      });
-    }
-    if (additions.length === 0) return;
-    onSave([...additions, ...paints]);
-    setBulkText("");
-    setBulkOpen(false);
-  }
-
-  const ownedCount = paints.filter((p) => p.owned).length;
-
-  return (
-    <div style={{ maxWidth: 640, margin: "0 auto", padding: "20px 20px 80px" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
-        <IconBtn onClick={onBack} label="Back to shelf">
-          <ArrowLeft size={18} />
-        </IconBtn>
-        <h1
-          style={{
-            fontFamily: "'Barlow Condensed', sans-serif",
-            fontWeight: 800,
-            fontSize: 28,
-            textTransform: "uppercase",
-            letterSpacing: 1,
-            margin: 0,
-          }}
-        >
-          Paint Locker
-        </h1>
-      </div>
-      <p style={{ color: INK_MUTED, fontSize: 14, marginBottom: 20 }}>
-        {ownedCount} of {paints.length} marked as owned. Check off what's on your rack — the step
-        picker can filter to these.
-      </p>
-
-      <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
-        <div
-          style={{
-            flex: 1,
-            display: "flex",
-            alignItems: "center",
-            gap: 8,
-            background: SURFACE,
-            border: `1px solid ${LINE}`,
-            borderRadius: 10,
-            padding: "10px 14px",
-          }}
-        >
-          <Search size={16} color={INK_MUTED} />
-          <input
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            placeholder="Search by name, brand, or line…"
-            style={{ background: "transparent", border: "none", outline: "none", color: INK, fontSize: 16, width: "100%" }}
-          />
-        </div>
-        <button
-          onClick={() => setOwnedOnly(!ownedOnly)}
-          style={{
-            fontSize: 13,
-            fontFamily: "'JetBrains Mono', monospace",
-            background: ownedOnly ? GOLD : SURFACE,
-            color: ownedOnly ? "#201E1D" : INK_MUTED,
-            border: `1px solid ${ownedOnly ? GOLD : LINE}`,
-            borderRadius: 10,
-            padding: "0 14px",
-            cursor: "pointer",
-            whiteSpace: "nowrap",
-          }}
-        >
-          owned only
-        </button>
-      </div>
-
-      <datalist id="brand-options">
-        {brandOptions.map((b) => (
-          <option key={b} value={b} />
-        ))}
-      </datalist>
-
-      <div style={{ display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
-        <input
-          list="brand-options"
-          value={newBrand}
-          onChange={(e) => setNewBrand(e.target.value)}
-          placeholder="Brand"
-          style={{
-            width: 130,
-            background: SURFACE,
-            border: `1px solid ${LINE}`,
-            color: INK,
-            borderRadius: 10,
-            padding: "10px 12px",
-            fontSize: 16,
-          }}
-        />
-        <input
-          value={newName}
-          onChange={(e) => setNewName(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && addCustom()}
-          placeholder="Add a paint name…"
-          style={{
-            flex: 1,
-            minWidth: 140,
-            background: SURFACE,
-            border: `1px solid ${LINE}`,
-            color: INK,
-            borderRadius: 10,
-            padding: "10px 12px",
-            fontSize: 16,
-          }}
-        />
-        <PrimaryBtn onClick={addCustom} disabled={!newName.trim() || !newBrand.trim()}>
-          <Plus size={15} /> Add
-        </PrimaryBtn>
-      </div>
-
-      {!bulkOpen ? (
-        <button
-          onClick={() => setBulkOpen(true)}
-          style={{
-            width: "100%",
-            background: "transparent",
-            border: `1px dashed ${LINE}`,
-            color: INK_MUTED,
-            borderRadius: 10,
-            padding: "10px 16px",
-            fontSize: 14,
-            cursor: "pointer",
-            marginBottom: 24,
-          }}
-        >
-          + Paste in a whole list
-        </button>
-      ) : (
-        <div style={{ background: SURFACE, border: `1px solid ${LINE}`, borderRadius: 12, padding: 14, marginBottom: 24 }}>
-          <div style={{ fontSize: 13, color: INK_MUTED, marginBottom: 10 }}>
-            Paste one paint name per line — from a manufacturer's site, a spreadsheet, wherever.
-            Re-pasting an updated list later skips anything already in the locker for that brand.
-          </div>
-          <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
-            <input
-              list="brand-options"
-              value={bulkBrand}
-              onChange={(e) => setBulkBrand(e.target.value)}
-              placeholder="Brand"
-              style={{
-                width: 130,
-                background: BG,
-                border: `1px solid ${LINE}`,
-                color: INK,
-                borderRadius: 10,
-                padding: "10px 12px",
-                fontSize: 16,
-              }}
-            />
-            <input
-              value={bulkLine}
-              onChange={(e) => setBulkLine(e.target.value)}
-              placeholder="Line/series (optional)"
-              style={{
-                flex: 1,
-                background: BG,
-                border: `1px solid ${LINE}`,
-                color: INK,
-                borderRadius: 10,
-                padding: "10px 12px",
-                fontSize: 16,
-              }}
-            />
-          </div>
-          <textarea
-            value={bulkText}
-            onChange={(e) => setBulkText(e.target.value)}
-            placeholder={"Abaddon Black\nCorax White\nMephiston Red…"}
-            style={{
-              width: "100%",
-              minHeight: 120,
-              background: BG,
-              border: `1px solid ${LINE}`,
-              color: INK,
-              borderRadius: 10,
-              padding: 12,
-              fontSize: 16,
-              resize: "vertical",
-              marginBottom: 10,
-            }}
-          />
-          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-            <PrimaryBtn onClick={bulkImport} disabled={bulkNewCount === 0 || !bulkBrand.trim()}>
-              Add {bulkNewCount > 0 ? bulkNewCount : ""} paint{bulkNewCount === 1 ? "" : "s"}
-            </PrimaryBtn>
-            <button
-              onClick={() => {
-                setBulkOpen(false);
-                setBulkText("");
-              }}
-              style={{ background: "transparent", border: `1px solid ${LINE}`, color: INK, borderRadius: 10, padding: "10px 16px", cursor: "pointer" }}
-            >
-              Cancel
-            </button>
-          </div>
-        </div>
-      )}
-
-      {brands.map((brand) => {
-        const brandPaints = filtered.filter((p) => p.brand === brand);
-        if (brandPaints.length === 0) return null;
-        const lines = Array.from(new Set(brandPaints.map((p) => p.line || "Other"))).sort((a, b) =>
-          a.localeCompare(b)
-        );
-        return (
-          <div key={brand} style={{ marginBottom: 22 }}>
-            <div
-              style={{
-                display: "inline-block",
-                fontFamily: "'JetBrains Mono', monospace",
-                fontSize: 11,
-                letterSpacing: 0.5,
-                color: brandTextColor(brand),
-                background: brandColor(brand),
-                padding: "3px 10px",
-                borderRadius: 6,
-                marginBottom: 10,
-              }}
-            >
-              {brand}
-            </div>
-            {lines.map((line) => {
-              const linePaints = brandPaints
-                .filter((p) => (p.line || "Other") === line)
-                .sort((a, b) => a.name.localeCompare(b.name));
-              return (
-                <div key={line} style={{ marginBottom: 10 }}>
-                  {lines.length > 1 && (
-                    <div style={{ fontSize: 12, color: INK_MUTED, margin: "6px 0 4px 2px" }}>
-                      {line}
-                    </div>
-                  )}
-                  <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                    {linePaints.map((p) => (
-                      <PaintRow
-                        key={p.id}
-                        paint={p}
-                        onToggle={() => toggleOwned(p.id)}
-                        onRename={(name) => renamePaint(p.id, name)}
-                        onDelete={() => deletePaint(p.id)}
-                      />
-                    ))}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-function PaintRow({ paint, onToggle, onRename, onDelete }) {
-  const [editing, setEditing] = useState(false);
-  const [val, setVal] = useState(paint.name);
-
-  function commit() {
-    setEditing(false);
-    if (val.trim() && val !== paint.name) onRename(val.trim());
-  }
-
-  return (
-    <div
-      style={{
-        display: "flex",
-        alignItems: "center",
-        gap: 10,
-        padding: "8px 10px",
-        borderRadius: 8,
-        background: paint.owned ? "rgba(201,162,39,0.08)" : "transparent",
-      }}
-    >
-      <button
-        onClick={onToggle}
-        aria-label={paint.owned ? "Mark not owned" : "Mark owned"}
-        style={{
-          width: 22,
-          height: 22,
-          borderRadius: 6,
-          border: `1px solid ${paint.owned ? GOLD : LINE}`,
-          background: paint.owned ? GOLD : "transparent",
+  function StepCard({ index, step, onUpdate, onRemove, onPhoto }) {
+    const photoRef = useRef(null);
+    return /* @__PURE__ */ React.createElement("div", { style: { background: SURFACE, border: `1px solid ${LINE}`, borderRadius: 14, padding: 16 } }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 12, alignItems: "flex-start" } }, /* @__PURE__ */ React.createElement(
+      "div",
+      {
+        style: {
+          width: 30,
+          height: 30,
+          borderRadius: "50%",
+          background: BG,
+          border: `1px solid ${LINE}`,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          fontFamily: "'JetBrains Mono', monospace",
+          fontSize: 13,
+          color: GOLD,
+          flexShrink: 0,
+          marginTop: 2
+        }
+      },
+      index
+    ), /* @__PURE__ */ React.createElement("div", { style: { flex: 1 } }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 8, alignItems: "center" } }, /* @__PURE__ */ React.createElement(
+      "input",
+      {
+        value: step.title,
+        onChange: (e) => onUpdate({ title: e.target.value }),
+        placeholder: "Step name \u2014 e.g. Pants, Cloak, Skin",
+        style: {
+          flex: 1,
+          background: "transparent",
+          border: "none",
+          color: INK,
+          fontWeight: 600,
+          fontSize: 16,
+          outline: "none"
+        }
+      }
+    ), /* @__PURE__ */ React.createElement(IconBtn, { onClick: onRemove, label: "Remove step", style: { width: 32, height: 32 } }, /* @__PURE__ */ React.createElement(X, { size: 14 }))), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 12, marginTop: 10, alignItems: "flex-start" } }, /* @__PURE__ */ React.createElement(
+      "div",
+      {
+        onClick: () => photoRef.current?.click(),
+        style: {
+          width: 64,
+          height: 64,
+          borderRadius: 8,
+          background: step.photo ? `#111 url(${step.photo}) center/cover no-repeat` : SURFACE_RAISED,
+          border: `1px solid ${LINE}`,
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
           cursor: "pointer",
-          flexShrink: 0,
-        }}
-      >
-        {paint.owned && <Check size={14} color="#201E1D" />}
-      </button>
-      <span style={{ width: 12, height: 12, borderRadius: "50%", background: paint.color, flexShrink: 0 }} />
-      {editing ? (
-        <input
-          autoFocus
-          value={val}
-          onChange={(e) => setVal(e.target.value)}
-          onFocus={(e) => e.target.select()}
-          onBlur={commit}
-          onKeyDown={(e) => e.key === "Enter" && commit()}
-          style={{
+          flexShrink: 0
+        }
+      },
+      !step.photo && /* @__PURE__ */ React.createElement(Camera, { size: 20, color: INK_MUTED })
+    ), /* @__PURE__ */ React.createElement(
+      "input",
+      {
+        ref: photoRef,
+        type: "file",
+        accept: "image/*",
+        style: { display: "none" },
+        onChange: (e) => e.target.files?.[0] && onPhoto(e.target.files[0])
+      }
+    ), /* @__PURE__ */ React.createElement("div", { style: { flex: 1 } }, /* @__PURE__ */ React.createElement(
+      FreeTextPaintNotes,
+      {
+        value: step.notes,
+        onChange: (v) => onUpdate({ notes: v }),
+        placeholder: ""
+      }
+    ))))));
+  }
+  function LockerView({ paints, onBack, onSave }) {
+    const [q, setQ] = useState("");
+    const [ownedOnly, setOwnedOnly] = useState(false);
+    const [newName, setNewName] = useState("");
+    const [newBrand, setNewBrand] = useState(Object.keys(BRAND_COLORS)[0]);
+    const [bulkOpen, setBulkOpen] = useState(false);
+    const [bulkBrand, setBulkBrand] = useState(Object.keys(BRAND_COLORS)[0]);
+    const [bulkLine, setBulkLine] = useState("");
+    const [bulkText, setBulkText] = useState("");
+    const brands = useMemo(() => {
+      const set = new Set(paints.map((p) => p.brand));
+      return Array.from(set).sort((a, b) => a.localeCompare(b));
+    }, [paints]);
+    const brandOptions = useMemo(() => {
+      const set = /* @__PURE__ */ new Set([...Object.keys(BRAND_COLORS), ...paints.map((p) => p.brand)]);
+      return Array.from(set);
+    }, [paints]);
+    const filtered = useMemo(() => {
+      let pool = paints;
+      if (ownedOnly) pool = pool.filter((p) => p.owned);
+      if (!q.trim()) return pool;
+      const s = q.toLowerCase();
+      return pool.filter(
+        (p) => p.name.toLowerCase().includes(s) || p.brand.toLowerCase().includes(s) || (p.line || "").toLowerCase().includes(s)
+      );
+    }, [paints, q, ownedOnly]);
+    function toggleOwned(id) {
+      onSave(paints.map((p) => p.id === id ? { ...p, owned: !p.owned } : p));
+    }
+    function renamePaint(id, name) {
+      onSave(paints.map((p) => p.id === id ? { ...p, name } : p));
+    }
+    function deletePaint(id) {
+      onSave(paints.filter((p) => p.id !== id));
+    }
+    function addCustom() {
+      if (!newName.trim() || !newBrand.trim()) return;
+      const paint = {
+        id: uid(),
+        brand: newBrand.trim(),
+        line: "Custom",
+        name: newName.trim(),
+        color: guessSwatchColor(newName),
+        owned: true,
+        custom: true
+      };
+      onSave([paint, ...paints]);
+      setNewName("");
+    }
+    const bulkLines = useMemo(() => {
+      return bulkText.split(/\r?\n/).map((l) => l.replace(/^[\s\-*•\u2022]+/, "").trim()).filter(Boolean);
+    }, [bulkText]);
+    const bulkNewCount = useMemo(() => {
+      if (!bulkBrand.trim()) return 0;
+      const existingKeys = new Set(paints.map((p) => (p.brand + "|" + p.name).toLowerCase()));
+      let count = 0;
+      for (const name of bulkLines) {
+        if (!existingKeys.has((bulkBrand.trim() + "|" + name).toLowerCase())) count++;
+      }
+      return count;
+    }, [bulkLines, bulkBrand, paints]);
+    function bulkImport() {
+      if (!bulkBrand.trim() || bulkLines.length === 0) return;
+      const existingKeys = new Set(paints.map((p) => (p.brand + "|" + p.name).toLowerCase()));
+      const additions = [];
+      for (const name of bulkLines) {
+        const key = (bulkBrand.trim() + "|" + name).toLowerCase();
+        if (existingKeys.has(key)) continue;
+        existingKeys.add(key);
+        additions.push({
+          id: uid(),
+          brand: bulkBrand.trim(),
+          line: bulkLine.trim() || "Imported",
+          name,
+          color: guessSwatchColor(name),
+          owned: false,
+          custom: true
+        });
+      }
+      if (additions.length === 0) return;
+      onSave([...additions, ...paints]);
+      setBulkText("");
+      setBulkOpen(false);
+    }
+    const ownedCount = paints.filter((p) => p.owned).length;
+    return /* @__PURE__ */ React.createElement("div", { style: { maxWidth: 640, margin: "0 auto", padding: "20px 20px 80px" } }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 12, marginBottom: 20 } }, /* @__PURE__ */ React.createElement(IconBtn, { onClick: onBack, label: "Back to shelf" }, /* @__PURE__ */ React.createElement(ArrowLeft, { size: 18 })), /* @__PURE__ */ React.createElement(
+      "h1",
+      {
+        style: {
+          fontFamily: "'Barlow Condensed', sans-serif",
+          fontWeight: 800,
+          fontSize: 28,
+          textTransform: "uppercase",
+          letterSpacing: 1,
+          margin: 0
+        }
+      },
+      "Paint Locker"
+    )), /* @__PURE__ */ React.createElement("p", { style: { color: INK_MUTED, fontSize: 14, marginBottom: 20 } }, ownedCount, " of ", paints.length, " marked as owned. Check off what's on your rack \u2014 the step picker can filter to these."), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 8, marginBottom: 16 } }, /* @__PURE__ */ React.createElement(
+      "div",
+      {
+        style: {
+          flex: 1,
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          background: SURFACE,
+          border: `1px solid ${LINE}`,
+          borderRadius: 10,
+          padding: "10px 14px"
+        }
+      },
+      /* @__PURE__ */ React.createElement(Search, { size: 16, color: INK_MUTED }),
+      /* @__PURE__ */ React.createElement(
+        "input",
+        {
+          value: q,
+          onChange: (e) => setQ(e.target.value),
+          placeholder: "Search by name, brand, or line\u2026",
+          style: { background: "transparent", border: "none", outline: "none", color: INK, fontSize: 16, width: "100%" }
+        }
+      )
+    ), /* @__PURE__ */ React.createElement(
+      "button",
+      {
+        onClick: () => setOwnedOnly(!ownedOnly),
+        style: {
+          fontSize: 13,
+          fontFamily: "'JetBrains Mono', monospace",
+          background: ownedOnly ? GOLD : SURFACE,
+          color: ownedOnly ? "#201E1D" : INK_MUTED,
+          border: `1px solid ${ownedOnly ? GOLD : LINE}`,
+          borderRadius: 10,
+          padding: "0 14px",
+          cursor: "pointer",
+          whiteSpace: "nowrap"
+        }
+      },
+      "owned only"
+    )), /* @__PURE__ */ React.createElement("datalist", { id: "brand-options" }, brandOptions.map((b) => /* @__PURE__ */ React.createElement("option", { key: b, value: b }))), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap" } }, /* @__PURE__ */ React.createElement(
+      "input",
+      {
+        list: "brand-options",
+        value: newBrand,
+        onChange: (e) => setNewBrand(e.target.value),
+        placeholder: "Brand",
+        style: {
+          width: 130,
+          background: SURFACE,
+          border: `1px solid ${LINE}`,
+          color: INK,
+          borderRadius: 10,
+          padding: "10px 12px",
+          fontSize: 16
+        }
+      }
+    ), /* @__PURE__ */ React.createElement(
+      "input",
+      {
+        value: newName,
+        onChange: (e) => setNewName(e.target.value),
+        onKeyDown: (e) => e.key === "Enter" && addCustom(),
+        placeholder: "Add a paint name\u2026",
+        style: {
+          flex: 1,
+          minWidth: 140,
+          background: SURFACE,
+          border: `1px solid ${LINE}`,
+          color: INK,
+          borderRadius: 10,
+          padding: "10px 12px",
+          fontSize: 16
+        }
+      }
+    ), /* @__PURE__ */ React.createElement(PrimaryBtn, { onClick: addCustom, disabled: !newName.trim() || !newBrand.trim() }, /* @__PURE__ */ React.createElement(Plus, { size: 15 }), " Add")), !bulkOpen ? /* @__PURE__ */ React.createElement(
+      "button",
+      {
+        onClick: () => setBulkOpen(true),
+        style: {
+          width: "100%",
+          background: "transparent",
+          border: `1px dashed ${LINE}`,
+          color: INK_MUTED,
+          borderRadius: 10,
+          padding: "10px 16px",
+          fontSize: 14,
+          cursor: "pointer",
+          marginBottom: 24
+        }
+      },
+      "+ Paste in a whole list"
+    ) : /* @__PURE__ */ React.createElement("div", { style: { background: SURFACE, border: `1px solid ${LINE}`, borderRadius: 12, padding: 14, marginBottom: 24 } }, /* @__PURE__ */ React.createElement("div", { style: { fontSize: 13, color: INK_MUTED, marginBottom: 10 } }, "Paste one paint name per line \u2014 from a manufacturer's site, a spreadsheet, wherever. Re-pasting an updated list later skips anything already in the locker for that brand."), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 8, marginBottom: 8 } }, /* @__PURE__ */ React.createElement(
+      "input",
+      {
+        list: "brand-options",
+        value: bulkBrand,
+        onChange: (e) => setBulkBrand(e.target.value),
+        placeholder: "Brand",
+        style: {
+          width: 130,
+          background: BG,
+          border: `1px solid ${LINE}`,
+          color: INK,
+          borderRadius: 10,
+          padding: "10px 12px",
+          fontSize: 16
+        }
+      }
+    ), /* @__PURE__ */ React.createElement(
+      "input",
+      {
+        value: bulkLine,
+        onChange: (e) => setBulkLine(e.target.value),
+        placeholder: "Line/series (optional)",
+        style: {
+          flex: 1,
+          background: BG,
+          border: `1px solid ${LINE}`,
+          color: INK,
+          borderRadius: 10,
+          padding: "10px 12px",
+          fontSize: 16
+        }
+      }
+    )), /* @__PURE__ */ React.createElement(
+      "textarea",
+      {
+        value: bulkText,
+        onChange: (e) => setBulkText(e.target.value),
+        placeholder: "Abaddon Black\nCorax White\nMephiston Red\u2026",
+        style: {
+          width: "100%",
+          minHeight: 120,
+          background: BG,
+          border: `1px solid ${LINE}`,
+          color: INK,
+          borderRadius: 10,
+          padding: 12,
+          fontSize: 16,
+          resize: "vertical",
+          marginBottom: 10
+        }
+      }
+    ), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 8, alignItems: "center" } }, /* @__PURE__ */ React.createElement(PrimaryBtn, { onClick: bulkImport, disabled: bulkNewCount === 0 || !bulkBrand.trim() }, "Add ", bulkNewCount > 0 ? bulkNewCount : "", " paint", bulkNewCount === 1 ? "" : "s"), /* @__PURE__ */ React.createElement(
+      "button",
+      {
+        onClick: () => {
+          setBulkOpen(false);
+          setBulkText("");
+        },
+        style: { background: "transparent", border: `1px solid ${LINE}`, color: INK, borderRadius: 10, padding: "10px 16px", cursor: "pointer" }
+      },
+      "Cancel"
+    ))), brands.map((brand) => {
+      const brandPaints = filtered.filter((p) => p.brand === brand);
+      if (brandPaints.length === 0) return null;
+      const lines = Array.from(new Set(brandPaints.map((p) => p.line || "Other"))).sort(
+        (a, b) => a.localeCompare(b)
+      );
+      return /* @__PURE__ */ React.createElement("div", { key: brand, style: { marginBottom: 22 } }, /* @__PURE__ */ React.createElement(
+        "div",
+        {
+          style: {
+            display: "inline-block",
+            fontFamily: "'JetBrains Mono', monospace",
+            fontSize: 11,
+            letterSpacing: 0.5,
+            color: brandTextColor(brand),
+            background: brandColor(brand),
+            padding: "3px 10px",
+            borderRadius: 6,
+            marginBottom: 10
+          }
+        },
+        brand
+      ), lines.map((line) => {
+        const linePaints = brandPaints.filter((p) => (p.line || "Other") === line).sort((a, b) => a.name.localeCompare(b.name));
+        return /* @__PURE__ */ React.createElement("div", { key: line, style: { marginBottom: 10 } }, lines.length > 1 && /* @__PURE__ */ React.createElement("div", { style: { fontSize: 12, color: INK_MUTED, margin: "6px 0 4px 2px" } }, line), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 2 } }, linePaints.map((p) => /* @__PURE__ */ React.createElement(
+          PaintRow,
+          {
+            key: p.id,
+            paint: p,
+            onToggle: () => toggleOwned(p.id),
+            onRename: (name) => renamePaint(p.id, name),
+            onDelete: () => deletePaint(p.id)
+          }
+        ))));
+      }));
+    }));
+  }
+  function PaintRow({ paint, onToggle, onRename, onDelete }) {
+    const [editing, setEditing] = useState(false);
+    const [val, setVal] = useState(paint.name);
+    function commit() {
+      setEditing(false);
+      if (val.trim() && val !== paint.name) onRename(val.trim());
+    }
+    return /* @__PURE__ */ React.createElement(
+      "div",
+      {
+        style: {
+          display: "flex",
+          alignItems: "center",
+          gap: 10,
+          padding: "8px 10px",
+          borderRadius: 8,
+          background: paint.owned ? "rgba(201,162,39,0.08)" : "transparent"
+        }
+      },
+      /* @__PURE__ */ React.createElement(
+        "button",
+        {
+          onClick: onToggle,
+          "aria-label": paint.owned ? "Mark not owned" : "Mark owned",
+          style: {
+            width: 22,
+            height: 22,
+            borderRadius: 6,
+            border: `1px solid ${paint.owned ? GOLD : LINE}`,
+            background: paint.owned ? GOLD : "transparent",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            cursor: "pointer",
+            flexShrink: 0
+          }
+        },
+        paint.owned && /* @__PURE__ */ React.createElement(Check, { size: 14, color: "#201E1D" })
+      ),
+      /* @__PURE__ */ React.createElement("span", { style: { width: 12, height: 12, borderRadius: "50%", background: paint.color, flexShrink: 0 } }),
+      editing ? /* @__PURE__ */ React.createElement(
+        "input",
+        {
+          autoFocus: true,
+          value: val,
+          onChange: (e) => setVal(e.target.value),
+          onFocus: (e) => e.target.select(),
+          onBlur: commit,
+          onKeyDown: (e) => e.key === "Enter" && commit(),
+          style: {
             flex: 1,
             background: SURFACE,
             border: `1px solid ${LINE}`,
             borderRadius: 6,
             color: INK,
             fontSize: 16,
-            padding: "4px 8px",
-          }}
-        />
-      ) : (
-        <span style={{ flex: 1, fontSize: 14, color: INK }}>{paint.name}</span>
-      )}
-      {paint.line && !editing && (
-        <span style={{ fontSize: 11, color: INK_MUTED, fontFamily: "'JetBrains Mono', monospace" }}>{paint.line}</span>
-      )}
-      <IconBtn onClick={() => setEditing(!editing)} label="Rename paint" style={{ width: 30, height: 30 }}>
-        <Edit3 size={13} />
-      </IconBtn>
-      <IconBtn onClick={onDelete} label="Delete paint" style={{ width: 30, height: 30 }}>
-        <Trash2 size={13} />
-      </IconBtn>
-    </div>
-  );
-}
-
-/* ---------------------------------------------------------
-   Backup & Restore — your own portable copy of everything,
-   independent of storage, this app, or Claude entirely.
---------------------------------------------------------- */
-function BackupView({ miniCount, badgeCount, paintCount, onBack, onExport, onImport }) {
-  const [exporting, setExporting] = useState(false);
-  const [importing, setImporting] = useState(false);
-  const [pendingFile, setPendingFile] = useState(null);
-  const [status, setStatus] = useState(null); // { type: 'success'|'error', message }
-  const fileInputRef = useRef(null);
-
-  async function handleExport() {
-    setExporting(true);
-    setStatus(null);
-    try {
-      await onExport();
-      setStatus({ type: "success", message: "Backup downloaded." });
-    } catch (err) {
-      console.error(err);
-      setStatus({ type: "error", message: "Export failed — try again." });
-    }
-    setExporting(false);
+            padding: "4px 8px"
+          }
+        }
+      ) : /* @__PURE__ */ React.createElement("span", { style: { flex: 1, fontSize: 14, color: INK } }, paint.name),
+      paint.line && !editing && /* @__PURE__ */ React.createElement("span", { style: { fontSize: 11, color: INK_MUTED, fontFamily: "'JetBrains Mono', monospace" } }, paint.line),
+      /* @__PURE__ */ React.createElement(IconBtn, { onClick: () => setEditing(!editing), label: "Rename paint", style: { width: 30, height: 30 } }, /* @__PURE__ */ React.createElement(Edit3, { size: 13 })),
+      /* @__PURE__ */ React.createElement(IconBtn, { onClick: onDelete, label: "Delete paint", style: { width: 30, height: 30 } }, /* @__PURE__ */ React.createElement(Trash2, { size: 13 }))
+    );
   }
-
-  function handleFileChosen(e) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setPendingFile(file);
-    setStatus(null);
-  }
-
-  async function confirmImport() {
-    if (!pendingFile) return;
-    setImporting(true);
-    setStatus(null);
-    try {
-      const text = await pendingFile.text();
-      const bundle = JSON.parse(text);
-      if (!bundle || bundle.app !== "mini-tracker") {
-        throw new Error("This doesn't look like a mini-tracker backup file.");
+  function BackupView({ miniCount, badgeCount, paintCount, onBack, onExport, onImport }) {
+    const [exporting, setExporting] = useState(false);
+    const [importing, setImporting] = useState(false);
+    const [pendingFile, setPendingFile] = useState(null);
+    const [status, setStatus] = useState(null);
+    const fileInputRef = useRef(null);
+    async function handleExport() {
+      setExporting(true);
+      setStatus(null);
+      try {
+        await onExport();
+        setStatus({ type: "success", message: "Backup downloaded." });
+      } catch (err) {
+        console.error(err);
+        setStatus({ type: "error", message: "Export failed \u2014 try again." });
       }
-      await onImport(bundle);
-      setStatus({ type: "success", message: "Restored from backup." });
-      setPendingFile(null);
-    } catch (err) {
-      console.error(err);
-      setStatus({ type: "error", message: err.message || "Couldn't read that file." });
+      setExporting(false);
     }
-    setImporting(false);
+    function handleFileChosen(e) {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      setPendingFile(file);
+      setStatus(null);
+    }
+    async function confirmImport() {
+      if (!pendingFile) return;
+      setImporting(true);
+      setStatus(null);
+      try {
+        const text = await pendingFile.text();
+        const bundle = JSON.parse(text);
+        if (!bundle || bundle.app !== "mini-tracker") {
+          throw new Error("This doesn't look like a mini-tracker backup file.");
+        }
+        await onImport(bundle);
+        setStatus({ type: "success", message: "Restored from backup." });
+        setPendingFile(null);
+      } catch (err) {
+        console.error(err);
+        setStatus({ type: "error", message: err.message || "Couldn't read that file." });
+      }
+      setImporting(false);
+    }
+    return /* @__PURE__ */ React.createElement("div", { style: { maxWidth: 560, margin: "0 auto", padding: "20px 20px 80px" } }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 12, marginBottom: 20 } }, /* @__PURE__ */ React.createElement(IconBtn, { onClick: onBack, label: "Back to shelf" }, /* @__PURE__ */ React.createElement(ArrowLeft, { size: 18 })), /* @__PURE__ */ React.createElement(
+      "h1",
+      {
+        style: {
+          fontFamily: "'Barlow Condensed', sans-serif",
+          fontWeight: 800,
+          fontSize: 28,
+          textTransform: "uppercase",
+          letterSpacing: 1,
+          margin: 0
+        }
+      },
+      "Backup & Restore"
+    )), /* @__PURE__ */ React.createElement("p", { style: { color: INK_MUTED, fontSize: 14, marginBottom: 24, lineHeight: 1.5 } }, "This downloads everything \u2014 every miniature, every step, your whole paint locker \u2014 as one file you keep. It's your own copy, independent of this app."), /* @__PURE__ */ React.createElement("div", { style: { background: SURFACE, border: `1px solid ${LINE}`, borderRadius: 14, padding: 18, marginBottom: 18 } }, /* @__PURE__ */ React.createElement(
+      "h2",
+      {
+        style: {
+          fontFamily: "'Barlow Condensed', sans-serif",
+          fontWeight: 700,
+          fontSize: 18,
+          textTransform: "uppercase",
+          letterSpacing: 1,
+          margin: "0 0 8px",
+          color: INK_MUTED
+        }
+      },
+      "Export"
+    ), /* @__PURE__ */ React.createElement("p", { style: { fontSize: 13, color: INK_MUTED, marginBottom: 14 } }, miniCount, " ", miniCount === 1 ? "miniature" : "miniatures", ", ", badgeCount, " badge", " ", badgeCount === 1 ? "reel" : "reels", ", ", paintCount, " paints. Do this every so often \u2014 after a big session, or before any update to the app."), /* @__PURE__ */ React.createElement(PrimaryBtn, { onClick: handleExport, disabled: exporting }, /* @__PURE__ */ React.createElement(Download, { size: 16 }), " ", exporting ? "Preparing\u2026" : "Download backup")), /* @__PURE__ */ React.createElement("div", { style: { background: SURFACE, border: `1px solid ${LINE}`, borderRadius: 14, padding: 18 } }, /* @__PURE__ */ React.createElement(
+      "h2",
+      {
+        style: {
+          fontFamily: "'Barlow Condensed', sans-serif",
+          fontWeight: 700,
+          fontSize: 18,
+          textTransform: "uppercase",
+          letterSpacing: 1,
+          margin: "0 0 8px",
+          color: INK_MUTED
+        }
+      },
+      "Restore"
+    ), /* @__PURE__ */ React.createElement("p", { style: { fontSize: 13, color: INK_MUTED, marginBottom: 14 } }, "Loads a backup file back in. This replaces what's currently here, so only do this if that's what you want."), /* @__PURE__ */ React.createElement(
+      "input",
+      {
+        ref: fileInputRef,
+        type: "file",
+        accept: "application/json,.json",
+        style: { display: "none" },
+        onChange: handleFileChosen
+      }
+    ), !pendingFile ? /* @__PURE__ */ React.createElement(
+      "button",
+      {
+        onClick: () => fileInputRef.current?.click(),
+        style: {
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          background: "transparent",
+          border: `1px dashed ${LINE}`,
+          color: INK_MUTED,
+          borderRadius: 10,
+          padding: "10px 16px",
+          fontSize: 14,
+          cursor: "pointer"
+        }
+      },
+      /* @__PURE__ */ React.createElement(Upload, { size: 16 }),
+      " Choose a backup file\u2026"
+    ) : /* @__PURE__ */ React.createElement("div", { style: { border: `1px solid ${LINE}`, borderRadius: 10, padding: 14 } }, /* @__PURE__ */ React.createElement("div", { style: { fontSize: 13, color: INK, marginBottom: 10 } }, "Restore from ", /* @__PURE__ */ React.createElement("strong", null, pendingFile.name), "? This replaces everything currently here \u2014 there's no undo once you confirm."), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 8 } }, /* @__PURE__ */ React.createElement(PrimaryBtn, { onClick: confirmImport, disabled: importing, style: { background: "#B23A48", color: INK } }, importing ? "Restoring\u2026" : "Yes, replace everything"), /* @__PURE__ */ React.createElement(
+      "button",
+      {
+        onClick: () => setPendingFile(null),
+        style: { background: "transparent", border: `1px solid ${LINE}`, color: INK, borderRadius: 10, padding: "10px 16px", cursor: "pointer" }
+      },
+      "Cancel"
+    )))), status && /* @__PURE__ */ React.createElement(
+      "div",
+      {
+        style: {
+          marginTop: 16,
+          fontSize: 13,
+          color: status.type === "error" ? "#B23A48" : GOLD
+        }
+      },
+      status.message
+    ));
   }
-
-  return (
-    <div style={{ maxWidth: 560, margin: "0 auto", padding: "20px 20px 80px" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
-        <IconBtn onClick={onBack} label="Back to shelf">
-          <ArrowLeft size={18} />
-        </IconBtn>
-        <h1
-          style={{
-            fontFamily: "'Barlow Condensed', sans-serif",
-            fontWeight: 800,
-            fontSize: 28,
-            textTransform: "uppercase",
-            letterSpacing: 1,
-            margin: 0,
-          }}
-        >
-          Backup &amp; Restore
-        </h1>
-      </div>
-
-      <p style={{ color: INK_MUTED, fontSize: 14, marginBottom: 24, lineHeight: 1.5 }}>
-        This downloads everything — every miniature, every step, your whole paint locker — as one
-        file you keep. It's your own copy, independent of this app.
-      </p>
-
-      <div style={{ background: SURFACE, border: `1px solid ${LINE}`, borderRadius: 14, padding: 18, marginBottom: 18 }}>
-        <h2
-          style={{
-            fontFamily: "'Barlow Condensed', sans-serif",
-            fontWeight: 700,
-            fontSize: 18,
-            textTransform: "uppercase",
-            letterSpacing: 1,
-            margin: "0 0 8px",
-            color: INK_MUTED,
-          }}
-        >
-          Export
-        </h2>
-        <p style={{ fontSize: 13, color: INK_MUTED, marginBottom: 14 }}>
-          {miniCount} {miniCount === 1 ? "miniature" : "miniatures"}, {badgeCount} badge{" "}
-          {badgeCount === 1 ? "reel" : "reels"}, {paintCount} paints. Do this every so often —
-          after a big session, or before any update to the app.
-        </p>
-        <PrimaryBtn onClick={handleExport} disabled={exporting}>
-          <Download size={16} /> {exporting ? "Preparing…" : "Download backup"}
-        </PrimaryBtn>
-      </div>
-
-      <div style={{ background: SURFACE, border: `1px solid ${LINE}`, borderRadius: 14, padding: 18 }}>
-        <h2
-          style={{
-            fontFamily: "'Barlow Condensed', sans-serif",
-            fontWeight: 700,
-            fontSize: 18,
-            textTransform: "uppercase",
-            letterSpacing: 1,
-            margin: "0 0 8px",
-            color: INK_MUTED,
-          }}
-        >
-          Restore
-        </h2>
-        <p style={{ fontSize: 13, color: INK_MUTED, marginBottom: 14 }}>
-          Loads a backup file back in. This replaces what's currently here, so only do this if
-          that's what you want.
-        </p>
-
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="application/json,.json"
-          style={{ display: "none" }}
-          onChange={handleFileChosen}
-        />
-
-        {!pendingFile ? (
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
-              background: "transparent",
-              border: `1px dashed ${LINE}`,
-              color: INK_MUTED,
-              borderRadius: 10,
-              padding: "10px 16px",
-              fontSize: 14,
-              cursor: "pointer",
-            }}
-          >
-            <Upload size={16} /> Choose a backup file…
-          </button>
-        ) : (
-          <div style={{ border: `1px solid ${LINE}`, borderRadius: 10, padding: 14 }}>
-            <div style={{ fontSize: 13, color: INK, marginBottom: 10 }}>
-              Restore from <strong>{pendingFile.name}</strong>? This replaces everything currently
-              here — there's no undo once you confirm.
-            </div>
-            <div style={{ display: "flex", gap: 8 }}>
-              <PrimaryBtn onClick={confirmImport} disabled={importing} style={{ background: "#B23A48", color: INK }}>
-                {importing ? "Restoring…" : "Yes, replace everything"}
-              </PrimaryBtn>
-              <button
-                onClick={() => setPendingFile(null)}
-                style={{ background: "transparent", border: `1px solid ${LINE}`, color: INK, borderRadius: 10, padding: "10px 16px", cursor: "pointer" }}
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {status && (
-        <div
-          style={{
-            marginTop: 16,
-            fontSize: 13,
-            color: status.type === "error" ? "#B23A48" : GOLD,
-          }}
-        >
-          {status.message}
-        </div>
-      )}
-    </div>
-  );
-}
-
-ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(App));
+})();
 </script>
 </body>
 </html>
