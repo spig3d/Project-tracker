@@ -9,8 +9,15 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="apple-mobile-web-app-title" content="Mini Tracker" />
 <style>
-  html, body { margin: 0; padding: 0; background: #201E1D; }
-  #root { min-height: 100vh; }
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: #201E1D;
+    overflow-x: hidden;
+    width: 100%;
+    max-width: 100vw;
+  }
+  #root { min-height: 100vh; overflow-x: hidden; }
 </style>
 </head>
 <body>
@@ -99,6 +106,34 @@ function Download(props) { return <Icon {...props}><path d="M21 15v4a2 2 0 0 1-2
 function Upload(props) { return <Icon {...props}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" /></Icon>; }
 
 
+/* Two custom icons for the catalog chooser — kept in the same stroke-based
+   line-icon style as the imported set, since there's no natural existing
+   icon for "display shelf" or "badge clipped to a pocket." */
+function ShelfIcon({ size = 40, color = "currentColor" }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color}
+         strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+      <line x1="3" y1="7" x2="21" y2="7" />
+      <line x1="3" y1="17" x2="21" y2="17" />
+      <circle cx="7" cy="4.2" r="1.4" fill={color} stroke="none" />
+      <circle cx="13" cy="4.2" r="1.4" fill={color} stroke="none" />
+      <circle cx="18.5" cy="4" r="1.6" fill={color} stroke="none" />
+      <circle cx="9" cy="14.2" r="1.6" fill={color} stroke="none" />
+      <circle cx="16" cy="14" r="1.4" fill={color} stroke="none" />
+    </svg>
+  );
+}
+function PocketIcon({ size = 40, color = "currentColor" }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color}
+         strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4 4h16v11a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5V4z" />
+      <path d="M4 10c3 1.6 13 1.6 16 0" />
+      <circle cx="12" cy="7" r="1.8" fill={color} stroke="none" />
+    </svg>
+  );
+}
+
 /* ---------------------------------------------------------
    Design tokens
    Primer grey base, wet-palette accent cluster used only
@@ -129,6 +164,32 @@ const DEFAULT_SECTIONS = [
   { id: "model", label: "Model" },
   { id: "base", label: "Base" },
 ];
+
+/* Two independent catalogs sharing the same structure — only the wording
+   and storage key differ. Minis keep the original "project-index" key so
+   existing saved data is untouched; badge reels get their own key. */
+const CATALOGS = {
+  mini: {
+    key: "mini",
+    screenTitle: "The Shelf",
+    subtitle: "(Minis)",
+    entryLabel: "miniature",
+    addLabel: "Add miniature",
+    namePlaceholder: "Miniature name",
+    emptyMessage: "The shelf is empty. Prime your first base and add a miniature.",
+    indexKey: "project-index",
+  },
+  badge: {
+    key: "badge",
+    screenTitle: "The Pocket",
+    subtitle: "(Badge reels)",
+    entryLabel: "badge reel",
+    addLabel: "Add badge reel",
+    namePlaceholder: "Badge reel name",
+    emptyMessage: "The pocket is empty. Add your first badge reel.",
+    indexKey: "badge-index",
+  },
+};
 
 /* ---------------------------------------------------------
    Seed paint catalog. Personal database — names are a
@@ -562,20 +623,25 @@ function FreeTextPaintNotes({ value, onChange, placeholder }) {
    Main App
 --------------------------------------------------------- */
 function App() {
-  const [view, setView] = useState("shelf"); // shelf | mini | locker
-  const [index, setIndex] = useState([]); // [{id,name,thumbnail}]
-  const [paints, setPaints] = useState([]); // full paint objects
+  const [catalog, setCatalog] = useState(null); // null (chooser) | "mini" | "badge"
+  const [view, setView] = useState("chooser"); // chooser | catalog | mini | locker | backup
+  const [indexes, setIndexes] = useState({ mini: [], badge: [] });
+  const [paints, setPaints] = useState([]); // full paint objects, shared across both catalogs
   const [currentId, setCurrentId] = useState(null);
   const [current, setCurrent] = useState(null); // full project object
   const [loadError, setLoadError] = useState(false);
   const [loaded, setLoaded] = useState(false);
   // 'loading' | 'ready' | 'error' — kept separate from `loaded` so a failed
   // read is never silently treated as "nothing saved yet."
-  const [indexState, setIndexState] = useState("loading");
+  const [indexStates, setIndexStates] = useState({ mini: "loading", badge: "loading" });
   const [paintsState, setPaintsState] = useState("loading");
   const [search, setSearch] = useState("");
   const fileRef = useRef(null);
   const stepFileRef = useRef({});
+
+  const index = catalog ? indexes[catalog] : [];
+  const indexState = catalog ? indexStates[catalog] : "loading";
+  const catalogConfig = catalog ? CATALOGS[catalog] : null;
 
   async function getWithRetry(key, attempts = 3, delayMs = 500) {
     for (let i = 0; i < attempts; i++) {
@@ -588,15 +654,15 @@ function App() {
     }
   }
 
-  async function loadIndex() {
-    setIndexState("loading");
+  async function loadIndexFor(catKey) {
+    setIndexStates((prev) => ({ ...prev, [catKey]: "loading" }));
     try {
-      const res = await getWithRetry("project-index");
-      setIndex(res ? JSON.parse(res.value) : []);
-      setIndexState("ready");
+      const res = await getWithRetry(CATALOGS[catKey].indexKey);
+      setIndexes((prev) => ({ ...prev, [catKey]: res ? JSON.parse(res.value) : [] }));
+      setIndexStates((prev) => ({ ...prev, [catKey]: "ready" }));
     } catch (err) {
-      console.error("Load index failed", err);
-      setIndexState("error");
+      console.error("Load index failed for", catKey, err);
+      setIndexStates((prev) => ({ ...prev, [catKey]: "error" }));
     }
   }
 
@@ -616,9 +682,9 @@ function App() {
   // Used when a load keeps failing and the person confirms there's genuinely
   // nothing saved yet (a brand-new setup), or when they want to reseed the
   // default paint catalog after ruling out a real outage.
-  async function startFreshIndex() {
-    setIndex([]);
-    setIndexState("ready");
+  function startFreshIndex(catKey) {
+    setIndexes((prev) => ({ ...prev, [catKey]: [] }));
+    setIndexStates((prev) => ({ ...prev, [catKey]: "ready" }));
   }
 
   async function startFreshPaints() {
@@ -636,11 +702,10 @@ function App() {
     setPaintsState("ready");
   }
 
-  // ---- initial load ----
+  // ---- initial load — both catalogs' indexes plus the shared paint locker ----
   useEffect(() => {
     (async () => {
-      await loadIndex();
-      await loadPaints();
+      await Promise.all([loadIndexFor("mini"), loadIndexFor("badge"), loadPaints()]);
       setLoaded(true);
     })();
   }, []);
@@ -663,6 +728,19 @@ function App() {
     document.addEventListener("focusout", handleFocusOut);
     return () => document.removeEventListener("focusout", handleFocusOut);
   }, []);
+
+  function chooseCatalog(catKey) {
+    setCatalog(catKey);
+    setView("catalog");
+    setSearch("");
+  }
+
+  function backToChooser() {
+    flushProjectSave();
+    flushIndexSave();
+    setCatalog(null);
+    setView("chooser");
+  }
 
   const paintsSaveTimer = useRef(null);
   const pendingPaints = useRef(null);
@@ -721,40 +799,41 @@ function App() {
     projectSaveTimer.current = setTimeout(flushProjectSave, 700);
   }
 
-  async function persistIndexNow(next) {
+  async function persistIndexNow(catKey, next) {
     try {
-      await window.storage.set("project-index", JSON.stringify(next));
+      await window.storage.set(CATALOGS[catKey].indexKey, JSON.stringify(next));
     } catch (err) {
-      console.error("Save index failed", err);
+      console.error("Save index failed for", catKey, err);
     }
   }
 
   function flushIndexSave() {
     clearTimeout(indexSaveTimer.current);
-    const next = pendingIndex.current;
+    const pending = pendingIndex.current;
     pendingIndex.current = null;
-    if (next) persistIndexNow(next);
+    if (pending) persistIndexNow(pending.catalog, pending.data);
   }
 
-  function scheduleIndexSave(next) {
-    pendingIndex.current = next;
+  function scheduleIndexSave(catKey, next) {
+    pendingIndex.current = { catalog: catKey, data: next };
     clearTimeout(indexSaveTimer.current);
     indexSaveTimer.current = setTimeout(flushIndexSave, 700);
   }
 
   // Immediate (non-debounced) index write — used for one-off actions like add/delete.
-  async function saveIndex(next) {
-    setIndex(next);
+  async function saveIndex(catKey, next) {
+    setIndexes((prev) => ({ ...prev, [catKey]: next }));
     pendingIndex.current = null;
     clearTimeout(indexSaveTimer.current);
-    await persistIndexNow(next);
+    await persistIndexNow(catKey, next);
   }
 
   function reorderIndex(newIdOrder) {
-    const byId = Object.fromEntries(index.map((p) => [p.id, p]));
+    const cur = indexes[catalog];
+    const byId = Object.fromEntries(cur.map((p) => [p.id, p]));
     const reordered = newIdOrder.map((id) => byId[id]).filter(Boolean);
-    const missing = index.filter((p) => !newIdOrder.includes(p.id));
-    saveIndex([...reordered, ...missing]);
+    const missing = cur.filter((p) => !newIdOrder.includes(p.id));
+    saveIndex(catalog, [...reordered, ...missing]);
   }
 
   // Immediate (non-debounced) project write — used for one-off actions like creation.
@@ -779,29 +858,31 @@ function App() {
     }
   }
 
-  // Bundle everything — every mini's full data, the paint locker — into one
-  // downloadable file. This is the person's own portable copy, independent
-  // of storage, this app, or Claude entirely.
+  // Bundle everything — every mini's and badge reel's full data, the shared
+  // paint locker — into one downloadable file. The person's own portable
+  // copy, independent of storage, this app, or Claude entirely.
   async function exportAllData() {
     const projects = {};
-    for (const entry of index) {
-      const cached = projectCache.current[entry.id];
-      if (cached) {
-        projects[entry.id] = cached;
-        continue;
-      }
-      try {
-        const proj = await fetchProject(entry.id);
-        if (proj) projects[entry.id] = proj;
-      } catch (err) {
-        console.error("Export: couldn't fetch project", entry.id, err);
+    for (const catKey of Object.keys(CATALOGS)) {
+      for (const entry of indexes[catKey]) {
+        const cached = projectCache.current[entry.id];
+        if (cached) {
+          projects[entry.id] = cached;
+          continue;
+        }
+        try {
+          const proj = await fetchProject(entry.id);
+          if (proj) projects[entry.id] = proj;
+        } catch (err) {
+          console.error("Export: couldn't fetch project", entry.id, err);
+        }
       }
     }
     const bundle = {
       app: "mini-tracker",
-      version: 1,
+      version: 2,
       exportedAt: new Date().toISOString(),
-      index,
+      indexes,
       projects,
       paints,
     };
@@ -818,9 +899,20 @@ function App() {
   }
 
   // Restores from a previously exported file. Overwrites current data, so
-  // the UI confirms with the person before calling this.
+  // the UI confirms with the person before calling this. Understands both
+  // the newer two-catalog format and the older single-catalog (minis-only)
+  // format from before The Pocket existed.
   async function importAllData(bundle) {
-    const nextIndex = Array.isArray(bundle.index) ? bundle.index : [];
+    let nextIndexes;
+    if (bundle.indexes && typeof bundle.indexes === "object") {
+      nextIndexes = {
+        mini: Array.isArray(bundle.indexes.mini) ? bundle.indexes.mini : [],
+        badge: Array.isArray(bundle.indexes.badge) ? bundle.indexes.badge : [],
+      };
+    } else {
+      // Legacy single-catalog backup — everything in it was minis.
+      nextIndexes = { mini: Array.isArray(bundle.index) ? bundle.index : [], badge: [] };
+    }
     const nextPaints = Array.isArray(bundle.paints) ? bundle.paints : [];
     const projects = bundle.projects && typeof bundle.projects === "object" ? bundle.projects : {};
 
@@ -828,7 +920,8 @@ function App() {
       projectCache.current[id] = proj;
       await persistProjectNow(proj);
     }
-    await saveIndex(nextIndex);
+    await saveIndex("mini", nextIndexes.mini);
+    await saveIndex("badge", nextIndexes.badge);
     savePaints(nextPaints);
     flushPaintsSave();
   }
@@ -869,6 +962,7 @@ function App() {
     const id = uid();
     const proj = {
       id,
+      catalog,
       name: "",
       notes: "",
       thumbnail: null,
@@ -876,15 +970,15 @@ function App() {
       steps: [],
     };
     await saveProject(proj);
-    const nextIndex = [{ id, name: proj.name, thumbnail: null }, ...index];
-    await saveIndex(nextIndex);
+    const nextIndex = [{ id, name: proj.name, thumbnail: null }, ...indexes[catalog]];
+    await saveIndex(catalog, nextIndex);
     setCurrentId(id);
     setView("mini");
   }
 
   async function deleteProject(id) {
-    const nextIndex = index.filter((p) => p.id !== id);
-    await saveIndex(nextIndex);
+    const nextIndex = indexes[catalog].filter((p) => p.id !== id);
+    await saveIndex(catalog, nextIndex);
     delete projectCache.current[id];
     try {
       await window.storage.delete("project:" + id);
@@ -892,7 +986,7 @@ function App() {
       // ignore — best effort
     }
     if (currentId === id) {
-      setView("shelf");
+      setView("catalog");
       setCurrent(null);
       setCurrentId(null);
     }
@@ -904,13 +998,14 @@ function App() {
     projectCache.current[next.id] = next;
     scheduleProjectSave(next);
     if (patch.name !== undefined || patch.thumbnail !== undefined) {
-      const nextIndex = index.map((p) =>
+      const cat = current.catalog || "mini";
+      const nextIndex = indexes[cat].map((p) =>
         p.id === current.id
           ? { ...p, name: patch.name ?? p.name, thumbnail: patch.thumbnail ?? p.thumbnail }
           : p
       );
-      setIndex(nextIndex);
-      scheduleIndexSave(nextIndex);
+      setIndexes((prev) => ({ ...prev, [cat]: nextIndex }));
+      scheduleIndexSave(cat, nextIndex);
     }
   }
 
@@ -966,10 +1061,12 @@ function App() {
   }
 
   const filteredIndex = useMemo(() => {
-    if (!search.trim()) return index;
+    if (!catalog) return [];
+    const list = indexes[catalog];
+    if (!search.trim()) return list;
     const s = search.toLowerCase();
-    return index.filter((p) => p.name.toLowerCase().includes(s));
-  }, [index, search]);
+    return list.filter((p) => p.name.toLowerCase().includes(s));
+  }, [indexes, catalog, search]);
 
   if (!loaded) {
     return (
@@ -979,12 +1076,12 @@ function App() {
     );
   }
 
-  if (view === "shelf" && indexState === "error") {
+  if (view === "catalog" && indexState === "error") {
     return (
       <DataLoadError
-        message="Couldn't load your saved miniatures. Your data is very likely still there — this is just a connection hiccup. Please retry rather than starting fresh if you have anything saved."
-        onRetry={loadIndex}
-        onStartFresh={startFreshIndex}
+        message={`Couldn't load your saved ${catalogConfig.entryLabel}s. Your data is very likely still there — this is just a connection hiccup. Please retry rather than starting fresh if you have anything saved.`}
+        onRetry={() => loadIndexFor(catalog)}
+        onStartFresh={() => startFreshIndex(catalog)}
       />
     );
   }
@@ -1022,8 +1119,17 @@ function App() {
         }
       `}</style>
 
-      {view === "shelf" && (
-        <ShelfView
+      {view === "chooser" && (
+        <ChooserView
+          miniCount={indexes.mini.length}
+          badgeCount={indexes.badge.length}
+          onChoose={chooseCatalog}
+        />
+      )}
+
+      {view === "catalog" && (
+        <CatalogView
+          config={catalogConfig}
           index={filteredIndex}
           search={search}
           setSearch={setSearch}
@@ -1032,18 +1138,20 @@ function App() {
           onOpenLocker={() => setView("locker")}
           onOpenBackup={() => setView("backup")}
           onReorder={reorderIndex}
+          onSwitchCatalog={backToChooser}
         />
       )}
 
       {view === "mini" && (
         <MiniView
+          config={catalogConfig || CATALOGS[current?.catalog || "mini"]}
           project={current}
           loadError={loadError}
           onRetry={() => openProject(currentId)}
           onBack={() => {
             flushProjectSave();
             flushIndexSave();
-            setView("shelf");
+            setView("catalog");
           }}
           onUpdate={updateCurrent}
           onThumbUpload={handleThumbUpload}
@@ -1064,7 +1172,7 @@ function App() {
           paints={paints}
           onBack={() => {
             flushPaintsSave();
-            setView("shelf");
+            setView(catalog ? "catalog" : "chooser");
           }}
           onSave={savePaints}
         />
@@ -1072,9 +1180,10 @@ function App() {
 
       {view === "backup" && (
         <BackupView
-          miniCount={index.length}
+          miniCount={indexes.mini.length}
+          badgeCount={indexes.badge.length}
           paintCount={paints.length}
-          onBack={() => setView("shelf")}
+          onBack={() => setView(catalog ? "catalog" : "chooser")}
           onExport={exportAllData}
           onImport={importAllData}
         />
@@ -1084,9 +1193,86 @@ function App() {
 }
 
 /* ---------------------------------------------------------
+   Chooser — the very first screen: pick a catalog
+--------------------------------------------------------- */
+function ChooserView({ miniCount, badgeCount, onChoose }) {
+  const tiles = [
+    { key: "mini", Icon: ShelfIcon, title: "The Shelf", subtitle: "(Minis)", count: miniCount },
+    { key: "badge", Icon: PocketIcon, title: "The Pocket", subtitle: "(Badge reels)", count: badgeCount },
+  ];
+  return (
+    <div
+      style={{
+        minHeight: "100vh",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: 24,
+        gap: 20,
+      }}
+    >
+      {tiles.map(({ key, Icon, title, subtitle, count }) => (
+        <button
+          key={key}
+          onClick={() => onChoose(key)}
+          style={{
+            width: "100%",
+            maxWidth: 340,
+            background: SURFACE,
+            border: `1px solid ${LINE}`,
+            borderRadius: 18,
+            padding: "28px 24px",
+            display: "flex",
+            alignItems: "center",
+            gap: 18,
+            cursor: "pointer",
+            textAlign: "left",
+          }}
+        >
+          <div
+            style={{
+              width: 64,
+              height: 64,
+              borderRadius: "50%",
+              background: BG,
+              border: `2px solid ${LINE}`,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              color: GOLD,
+              flexShrink: 0,
+            }}
+          >
+            <Icon size={30} />
+          </div>
+          <div>
+            <div
+              style={{
+                fontFamily: "'Barlow Condensed', sans-serif",
+                fontWeight: 800,
+                fontSize: 26,
+                textTransform: "uppercase",
+                letterSpacing: 1,
+                color: INK,
+              }}
+            >
+              {title}
+            </div>
+            <div style={{ fontSize: 13, color: INK_MUTED }}>
+              {subtitle} · {count} saved
+            </div>
+          </div>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/* ---------------------------------------------------------
    Shelf (home) view
 --------------------------------------------------------- */
-function ShelfView({ index, search, setSearch, onOpen, onCreate, onOpenLocker, onOpenBackup, onReorder }) {
+function CatalogView({ config, index, search, setSearch, onOpen, onCreate, onOpenLocker, onOpenBackup, onReorder, onSwitchCatalog }) {
   const [rearranging, setRearranging] = useState(false);
   const [liveOrder, setLiveOrder] = useState(null); // array of ids, only set while rearranging
   const [draggingId, setDraggingId] = useState(null);
@@ -1217,18 +1403,22 @@ function ShelfView({ index, search, setSearch, onOpen, onCreate, onOpenLocker, o
         .shelf-jiggle { animation: shelfJiggle 0.28s ease-in-out infinite; }
       `}</style>
 
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
+        <IconBtn onClick={onSwitchCatalog} label="Switch catalog">
+          <ArrowLeft size={18} />
+        </IconBtn>
         <h1
           style={{
             fontFamily: "'Barlow Condensed', sans-serif",
             fontWeight: 800,
-            fontSize: 34,
+            fontSize: 30,
             letterSpacing: 1,
             textTransform: "uppercase",
             margin: 0,
+            flex: 1,
           }}
         >
-          The Shelf
+          {config.screenTitle}
         </h1>
         {rearranging && (
           <PrimaryBtn onClick={finishRearranging} style={{ padding: "8px 16px", fontSize: 13 }}>
@@ -1239,7 +1429,7 @@ function ShelfView({ index, search, setSearch, onOpen, onCreate, onOpenLocker, o
       <p style={{ color: INK_MUTED, marginTop: 4, marginBottom: 22, fontSize: 14 }}>
         {rearranging
           ? "Drag to reorder, then tap Done."
-          : `${index.length} ${index.length === 1 ? "miniature" : "miniatures"} on display`}
+          : `${index.length} ${config.entryLabel}${index.length === 1 ? "" : "s"} on display`}
       </p>
 
       {!rearranging && (
@@ -1260,10 +1450,13 @@ function ShelfView({ index, search, setSearch, onOpen, onCreate, onOpenLocker, o
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Find a mini by name…"
+              placeholder={`Find a ${config.entryLabel} by name…`}
               style={{ background: "transparent", border: "none", outline: "none", color: INK, fontSize: 16, width: "100%" }}
             />
           </div>
+          <IconBtn onClick={onCreate} label={config.addLabel}>
+            <Plus size={18} />
+          </IconBtn>
           <IconBtn onClick={onOpenLocker} label="Paint locker">
             <Palette size={18} />
           </IconBtn>
@@ -1283,11 +1476,9 @@ function ShelfView({ index, search, setSearch, onOpen, onCreate, onOpenLocker, o
             borderRadius: 14,
           }}
         >
-          <div style={{ fontSize: 15, marginBottom: 14 }}>
-            The shelf is empty. Prime your first base and add a miniature.
-          </div>
+          <div style={{ fontSize: 15, marginBottom: 14 }}>{config.emptyMessage}</div>
           <PrimaryBtn onClick={onCreate} style={{ margin: "0 auto" }}>
-            <Plus size={16} /> Add miniature
+            <Plus size={16} /> {config.addLabel}
           </PrimaryBtn>
         </div>
       ) : (
@@ -1336,27 +1527,6 @@ function ShelfView({ index, search, setSearch, onOpen, onCreate, onOpenLocker, o
               </div>
             );
           })}
-          {!rearranging && (
-            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
-              <div
-                onClick={onCreate}
-                style={{
-                  width: 96,
-                  height: 96,
-                  borderRadius: "50%",
-                  border: `2px dashed ${LINE}`,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  cursor: "pointer",
-                  color: INK_MUTED,
-                }}
-              >
-                <Plus size={26} />
-              </div>
-              <div style={{ fontSize: 12, color: INK_MUTED }}>Add mini</div>
-            </div>
-          )}
         </div>
       )}
 
@@ -1392,6 +1562,7 @@ function ShelfView({ index, search, setSearch, onOpen, onCreate, onOpenLocker, o
    Mini detail view
 --------------------------------------------------------- */
 function MiniView({
+  config,
   project,
   loadError,
   onRetry,
@@ -1413,11 +1584,11 @@ function MiniView({
   if (loadError) {
     return (
       <div style={{ maxWidth: 640, margin: "0 auto", padding: 20 }}>
-        <IconBtn onClick={onBack} label="Back to shelf" style={{ marginBottom: 20 }}>
+        <IconBtn onClick={onBack} label="Back" style={{ marginBottom: 20 }}>
           <ArrowLeft size={18} />
         </IconBtn>
         <div style={{ color: INK_MUTED, fontSize: 14, marginBottom: 14 }}>
-          This miniature didn't load. Your data is likely still there — try again.
+          This {config.entryLabel} didn't load. Your data is likely still there — try again.
         </div>
         <PrimaryBtn onClick={onRetry}>Try again</PrimaryBtn>
       </div>
@@ -1435,11 +1606,11 @@ function MiniView({
   return (
     <div style={{ maxWidth: 640, margin: "0 auto", padding: "20px 20px 80px" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 22 }}>
-        <IconBtn onClick={onBack} label="Back to shelf">
+        <IconBtn onClick={onBack} label="Back">
           <ArrowLeft size={18} />
         </IconBtn>
         <div style={{ flex: 1 }} />
-        <IconBtn onClick={() => setConfirmDelete(true)} label="Delete miniature">
+        <IconBtn onClick={() => setConfirmDelete(true)} label={`Delete ${config.entryLabel}`}>
           <Trash2 size={16} />
         </IconBtn>
       </div>
@@ -1455,7 +1626,7 @@ function MiniView({
           }}
         >
           <div style={{ fontSize: 14, marginBottom: 12 }}>
-            Remove "{project.name}" from the shelf? This can't be undone.
+            Remove "{project.name}" from {config.screenTitle}? This can't be undone.
           </div>
           <div style={{ display: "flex", gap: 10 }}>
             <PrimaryBtn onClick={onDelete} style={{ background: "#B23A48", color: INK }}>
@@ -1485,7 +1656,7 @@ function MiniView({
         <input
           value={project.name}
           onChange={(e) => onUpdate({ name: e.target.value })}
-          placeholder="Miniature name"
+          placeholder={config.namePlaceholder}
           style={{
             flex: 1,
             background: "transparent",
@@ -1506,7 +1677,7 @@ function MiniView({
       <textarea
         value={project.notes}
         onChange={(e) => onUpdate({ notes: e.target.value })}
-        placeholder="General notes about this mini — model line, scale, conversions…"
+        placeholder={`General notes about this ${config.entryLabel}…`}
         style={{
           width: "100%",
           minHeight: 60,
@@ -2234,7 +2405,7 @@ function PaintRow({ paint, onToggle, onRename, onDelete }) {
    Backup & Restore — your own portable copy of everything,
    independent of storage, this app, or Claude entirely.
 --------------------------------------------------------- */
-function BackupView({ miniCount, paintCount, onBack, onExport, onImport }) {
+function BackupView({ miniCount, badgeCount, paintCount, onBack, onExport, onImport }) {
   const [exporting, setExporting] = useState(false);
   const [importing, setImporting] = useState(false);
   const [pendingFile, setPendingFile] = useState(null);
@@ -2321,8 +2492,9 @@ function BackupView({ miniCount, paintCount, onBack, onExport, onImport }) {
           Export
         </h2>
         <p style={{ fontSize: 13, color: INK_MUTED, marginBottom: 14 }}>
-          {miniCount} {miniCount === 1 ? "miniature" : "miniatures"}, {paintCount} paints. Do this
-          every so often — after a big painting session, or before any update to the app.
+          {miniCount} {miniCount === 1 ? "miniature" : "miniatures"}, {badgeCount} badge{" "}
+          {badgeCount === 1 ? "reel" : "reels"}, {paintCount} paints. Do this every so often —
+          after a big session, or before any update to the app.
         </p>
         <PrimaryBtn onClick={handleExport} disabled={exporting}>
           <Download size={16} /> {exporting ? "Preparing…" : "Download backup"}
