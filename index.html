@@ -519,8 +519,9 @@
       children
     );
   }
-  function BaseThumb({ src, size = 96, onClick, position }) {
+  function BaseThumb({ src, size = 96, onClick, position, zoom }) {
     const pos = position || { x: 50, y: 50 };
+    const z = zoom || 1;
     return /* @__PURE__ */ React.createElement(
       "div",
       {
@@ -529,7 +530,9 @@
           width: size,
           height: size,
           borderRadius: "50%",
-          background: src ? `#111 url(${src}) ${pos.x}% ${pos.y}% / cover no-repeat` : SURFACE_RAISED,
+          overflow: "hidden",
+          position: "relative",
+          background: src ? "#111" : SURFACE_RAISED,
           border: `3px solid ${LINE}`,
           boxShadow: "0 4px 10px rgba(0,0,0,0.35), inset 0 0 0 2px #15130f",
           display: "flex",
@@ -539,7 +542,21 @@
           flexShrink: 0
         }
       },
-      !src && /* @__PURE__ */ React.createElement(Camera, { size: size * 0.28, color: INK_MUTED })
+      src ? /* @__PURE__ */ React.createElement(
+        "img",
+        {
+          src,
+          alt: "",
+          style: {
+            width: "100%",
+            height: "100%",
+            objectFit: "cover",
+            objectPosition: `${pos.x}% ${pos.y}%`,
+            transform: `scale(${z})`,
+            transformOrigin: `${pos.x}% ${pos.y}%`
+          }
+        }
+      ) : /* @__PURE__ */ React.createElement(Camera, { size: size * 0.28, color: INK_MUTED })
     );
   }
   function PhotoViewer({ photoFull, photoSmall, onClose, onChangePhoto, onReposition }) {
@@ -582,30 +599,65 @@
       ))
     );
   }
-  function RepositionEditor({ photoFull, photoSmall, shape, initialPosition, onSave, onCancel }) {
+  var MIN_ZOOM = 1;
+  var MAX_ZOOM = 4;
+  function RepositionEditor({ photoFull, photoSmall, shape, initialPosition, initialZoom, onSave, onCancel }) {
     const [pos, setPos] = useState(initialPosition || { x: 50, y: 50 });
+    const [zoom, setZoom] = useState(initialZoom || 1);
     const containerRef = useRef(null);
-    const dragging = useRef(false);
-    const lastPoint = useRef({ x: 0, y: 0 });
+    const pointers = useRef(/* @__PURE__ */ new Map());
+    const lastPanPoint = useRef({ x: 0, y: 0 });
+    const lastPinchDist = useRef(null);
+    function clampPos(p) {
+      return { x: Math.min(100, Math.max(0, p.x)), y: Math.min(100, Math.max(0, p.y)) };
+    }
+    function clampZoom(z) {
+      return Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, z));
+    }
+    function pointerDist(pts) {
+      const [a, b] = pts;
+      return Math.hypot(a.x - b.x, a.y - b.y);
+    }
     function handlePointerDown(e) {
-      dragging.current = true;
-      lastPoint.current = { x: e.clientX, y: e.clientY };
       e.currentTarget.setPointerCapture?.(e.pointerId);
+      pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (pointers.current.size === 1) {
+        lastPanPoint.current = { x: e.clientX, y: e.clientY };
+      } else if (pointers.current.size === 2) {
+        lastPinchDist.current = pointerDist(Array.from(pointers.current.values()));
+      }
     }
     function handlePointerMove(e) {
-      if (!dragging.current || !containerRef.current) return;
+      if (!pointers.current.has(e.pointerId) || !containerRef.current) return;
+      pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
       const rect = containerRef.current.getBoundingClientRect();
-      const dx = (e.clientX - lastPoint.current.x) / rect.width * 100;
-      const dy = (e.clientY - lastPoint.current.y) / rect.height * 100;
-      lastPoint.current = { x: e.clientX, y: e.clientY };
-      setPos((p) => ({
-        x: Math.min(100, Math.max(0, p.x - dx)),
-        y: Math.min(100, Math.max(0, p.y - dy))
-      }));
+      const pts = Array.from(pointers.current.values());
+      if (pointers.current.size === 2) {
+        const dist = pointerDist(pts);
+        if (lastPinchDist.current) {
+          const ratio = dist / lastPinchDist.current;
+          setZoom((z) => clampZoom(z * ratio));
+        }
+        lastPinchDist.current = dist;
+      } else if (pointers.current.size === 1) {
+        const dx = (e.clientX - lastPanPoint.current.x) / rect.width * 100;
+        const dy = (e.clientY - lastPanPoint.current.y) / rect.height * 100;
+        lastPanPoint.current = { x: e.clientX, y: e.clientY };
+        setPos((p) => clampPos({ x: p.x - dx, y: p.y - dy }));
+      }
     }
-    function handlePointerUp() {
-      dragging.current = false;
+    function handlePointerUp(e) {
+      pointers.current.delete(e.pointerId);
+      if (pointers.current.size < 2) lastPinchDist.current = null;
+      if (pointers.current.size === 1) {
+        const [remaining] = Array.from(pointers.current.values());
+        lastPanPoint.current = remaining;
+      }
     }
+    function nudgeZoom(delta) {
+      setZoom((z) => clampZoom(z + delta));
+    }
+    const src = photoFull || photoSmall;
     return /* @__PURE__ */ React.createElement(
       "div",
       {
@@ -621,7 +673,7 @@
           padding: 20
         }
       },
-      /* @__PURE__ */ React.createElement("div", { style: { fontSize: 13, color: INK_MUTED, marginBottom: 18, textAlign: "center" } }, "Drag the photo to choose what's centered in the preview"),
+      /* @__PURE__ */ React.createElement("div", { style: { fontSize: 13, color: INK_MUTED, marginBottom: 18, textAlign: "center" } }, "Drag to reposition \xB7 pinch or use the buttons below to zoom"),
       /* @__PURE__ */ React.createElement(
         "div",
         {
@@ -634,14 +686,34 @@
             width: 240,
             height: 240,
             borderRadius: shape === "circle" ? "50%" : 16,
-            background: `#111 url(${photoFull || photoSmall}) ${pos.x}% ${pos.y}% / cover no-repeat`,
+            overflow: "hidden",
+            position: "relative",
+            background: "#111",
             border: `3px solid ${LINE}`,
             touchAction: "none",
             cursor: "grab"
           }
-        }
+        },
+        /* @__PURE__ */ React.createElement(
+          "img",
+          {
+            src,
+            alt: "",
+            draggable: false,
+            style: {
+              width: "100%",
+              height: "100%",
+              objectFit: "cover",
+              objectPosition: `${pos.x}% ${pos.y}%`,
+              transform: `scale(${zoom})`,
+              transformOrigin: `${pos.x}% ${pos.y}%`,
+              pointerEvents: "none"
+            }
+          }
+        )
       ),
-      /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 10, marginTop: 26 } }, /* @__PURE__ */ React.createElement(PrimaryBtn, { onClick: () => onSave(pos) }, "Save"), /* @__PURE__ */ React.createElement(
+      /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 14, marginTop: 18 } }, /* @__PURE__ */ React.createElement(IconBtn, { onClick: () => nudgeZoom(-0.25), label: "Zoom out", style: { width: 36, height: 36 } }, /* @__PURE__ */ React.createElement("span", { style: { fontSize: 18, lineHeight: 1 } }, "\u2212")), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 12, color: INK_MUTED, fontFamily: "'JetBrains Mono', monospace", minWidth: 42, textAlign: "center" } }, Math.round(zoom * 100), "%"), /* @__PURE__ */ React.createElement(IconBtn, { onClick: () => nudgeZoom(0.25), label: "Zoom in", style: { width: 36, height: 36 } }, /* @__PURE__ */ React.createElement("span", { style: { fontSize: 18, lineHeight: 1 } }, "+"))),
+      /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 10, marginTop: 22 } }, /* @__PURE__ */ React.createElement(PrimaryBtn, { onClick: () => onSave(pos, zoom) }, "Save"), /* @__PURE__ */ React.createElement(
         "button",
         {
           onClick: onCancel,
@@ -1048,14 +1120,15 @@
       setCurrent(next);
       projectCache.current[next.id] = next;
       scheduleProjectSave(next);
-      if (patch.name !== void 0 || patch.thumbnail !== void 0 || patch.thumbnailPosition !== void 0) {
+      if (patch.name !== void 0 || patch.thumbnail !== void 0 || patch.thumbnailPosition !== void 0 || patch.thumbnailZoom !== void 0) {
         const cat = current.catalog || "mini";
         const nextIndex = indexes[cat].map(
           (p) => p.id === current.id ? {
             ...p,
             name: patch.name ?? p.name,
             thumbnail: patch.thumbnail ?? p.thumbnail,
-            thumbnailPosition: patch.thumbnailPosition ?? p.thumbnailPosition
+            thumbnailPosition: patch.thumbnailPosition ?? p.thumbnailPosition,
+            thumbnailZoom: patch.thumbnailZoom ?? p.thumbnailZoom
           } : p
         );
         setIndexes((prev) => ({ ...prev, [cat]: nextIndex }));
@@ -1069,7 +1142,12 @@
         fileToResizedDataUrl(file, 400, 0.7),
         fileToResizedDataUrl(file, 1600, 0.8)
       ]);
-      await updateCurrent({ thumbnail: dataUrl, thumbnailFull: fullDataUrl, thumbnailPosition: { x: 50, y: 50 } });
+      await updateCurrent({
+        thumbnail: dataUrl,
+        thumbnailFull: fullDataUrl,
+        thumbnailPosition: { x: 50, y: 50 },
+        thumbnailZoom: 1
+      });
     }
     async function handleStepPhoto(stepId, file) {
       if (!file) return;
@@ -1078,7 +1156,7 @@
         fileToResizedDataUrl(file, 1600, 0.8)
       ]);
       const steps = current.steps.map(
-        (s) => s.id === stepId ? { ...s, photo: dataUrl, photoFull: fullDataUrl, photoPosition: { x: 50, y: 50 } } : s
+        (s) => s.id === stepId ? { ...s, photo: dataUrl, photoFull: fullDataUrl, photoPosition: { x: 50, y: 50 }, photoZoom: 1 } : s
       );
       await updateCurrent({ steps });
     }
@@ -1508,7 +1586,7 @@
               visibility: isDragging ? "hidden" : "visible"
             }
           },
-          /* @__PURE__ */ React.createElement(BaseThumb, { src: p.thumbnail, position: p.thumbnailPosition }),
+          /* @__PURE__ */ React.createElement(BaseThumb, { src: p.thumbnail, position: p.thumbnailPosition, zoom: p.thumbnailZoom }),
           /* @__PURE__ */ React.createElement(
             "div",
             {
@@ -1549,7 +1627,8 @@
         BaseThumb,
         {
           src: (index.find((p) => p.id === draggingId) || {}).thumbnail,
-          position: (index.find((p) => p.id === draggingId) || {}).thumbnailPosition
+          position: (index.find((p) => p.id === draggingId) || {}).thumbnailPosition,
+          zoom: (index.find((p) => p.id === draggingId) || {}).thumbnailZoom
         }
       ),
       /* @__PURE__ */ React.createElement("div", { style: { fontSize: 12, color: INK, textAlign: "center", maxWidth: 110 } }, (index.find((p) => p.id === draggingId) || {}).name || "Untitled")
@@ -1607,6 +1686,7 @@
       {
         src: project.thumbnail,
         position: project.thumbnailPosition,
+        zoom: project.thumbnailZoom,
         size: 92,
         onClick: () => project.thumbnail ? setViewerOpen(true) : fileRef.current?.click()
       }
@@ -1697,8 +1777,9 @@
         photoSmall: project.thumbnail,
         shape: "circle",
         initialPosition: project.thumbnailPosition,
-        onSave: (pos) => {
-          onUpdate({ thumbnailPosition: pos });
+        initialZoom: project.thumbnailZoom,
+        onSave: (pos, zoom) => {
+          onUpdate({ thumbnailPosition: pos, thumbnailZoom: zoom });
           setRepositioning(false);
         },
         onCancel: () => setRepositioning(false)
@@ -1880,7 +1961,9 @@
           width: 64,
           height: 64,
           borderRadius: 8,
-          background: step.photo ? `#111 url(${step.photo}) ${(step.photoPosition || { x: 50, y: 50 }).x}% ${(step.photoPosition || { x: 50, y: 50 }).y}% / cover no-repeat` : SURFACE_RAISED,
+          overflow: "hidden",
+          position: "relative",
+          background: step.photo ? "#111" : SURFACE_RAISED,
           border: `1px solid ${LINE}`,
           display: "flex",
           alignItems: "center",
@@ -1889,7 +1972,21 @@
           flexShrink: 0
         }
       },
-      !step.photo && /* @__PURE__ */ React.createElement(Camera, { size: 20, color: INK_MUTED })
+      step.photo ? /* @__PURE__ */ React.createElement(
+        "img",
+        {
+          src: step.photo,
+          alt: "",
+          style: {
+            width: "100%",
+            height: "100%",
+            objectFit: "cover",
+            objectPosition: `${(step.photoPosition || { x: 50, y: 50 }).x}% ${(step.photoPosition || { x: 50, y: 50 }).y}%`,
+            transform: `scale(${step.photoZoom || 1})`,
+            transformOrigin: `${(step.photoPosition || { x: 50, y: 50 }).x}% ${(step.photoPosition || { x: 50, y: 50 }).y}%`
+          }
+        }
+      ) : /* @__PURE__ */ React.createElement(Camera, { size: 20, color: INK_MUTED })
     ), /* @__PURE__ */ React.createElement(
       "input",
       {
@@ -1928,8 +2025,9 @@
         photoSmall: step.photo,
         shape: "square",
         initialPosition: step.photoPosition,
-        onSave: (pos) => {
-          onUpdate({ photoPosition: pos });
+        initialZoom: step.photoZoom,
+        onSave: (pos, zoom) => {
+          onUpdate({ photoPosition: pos, photoZoom: zoom });
           setRepositioning(false);
         },
         onCancel: () => setRepositioning(false)
