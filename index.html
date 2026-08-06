@@ -38,8 +38,6 @@
 <div id="boot-error"></div>
 
 <script>
-// Self-diagnosing error banner — so a blank/black screen always shows
-// what actually went wrong instead of nothing at all.
 (function () {
   var shown = false;
   function showError(title, detail) {
@@ -68,10 +66,8 @@
 })();
 </script>
 
-<!-- React (UMD builds — no bundler needed) -->
 <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
 <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-<!-- Supabase client -->
 <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
 
 <script>
@@ -120,8 +116,6 @@
 })();
 </script>
 
-<!-- Pre-compiled app (JSX already transformed to plain JS — no in-browser
-     Babel transform involved, removing an entire class of runtime risk) -->
 <script>
 (() => {
   // full-source.jsx
@@ -525,7 +519,8 @@
       children
     );
   }
-  function BaseThumb({ src, size = 96, onClick }) {
+  function BaseThumb({ src, size = 96, onClick, position }) {
+    const pos = position || { x: 50, y: 50 };
     return /* @__PURE__ */ React.createElement(
       "div",
       {
@@ -534,7 +529,7 @@
           width: size,
           height: size,
           borderRadius: "50%",
-          background: src ? `#111 url(${src}) center/cover no-repeat` : SURFACE_RAISED,
+          background: src ? `#111 url(${src}) ${pos.x}% ${pos.y}% / cover no-repeat` : SURFACE_RAISED,
           border: `3px solid ${LINE}`,
           boxShadow: "0 4px 10px rgba(0,0,0,0.35), inset 0 0 0 2px #15130f",
           display: "flex",
@@ -545,6 +540,123 @@
         }
       },
       !src && /* @__PURE__ */ React.createElement(Camera, { size: size * 0.28, color: INK_MUTED })
+    );
+  }
+  function PhotoViewer({ photoFull, photoSmall, onClose, onChangePhoto, onReposition }) {
+    return /* @__PURE__ */ React.createElement(
+      "div",
+      {
+        style: {
+          position: "fixed",
+          inset: 0,
+          background: "rgba(10,9,8,0.96)",
+          zIndex: 2e3,
+          display: "flex",
+          flexDirection: "column"
+        }
+      },
+      /* @__PURE__ */ React.createElement("div", { style: { display: "flex", justifyContent: "flex-end", padding: 14 } }, /* @__PURE__ */ React.createElement(IconBtn, { onClick: onClose, label: "Close" }, /* @__PURE__ */ React.createElement(X, { size: 18 }))),
+      /* @__PURE__ */ React.createElement("div", { style: { flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: 16, minHeight: 0 } }, /* @__PURE__ */ React.createElement(
+        "img",
+        {
+          src: photoFull || photoSmall,
+          alt: "",
+          style: { maxWidth: "100%", maxHeight: "100%", objectFit: "contain", borderRadius: 8 }
+        }
+      )),
+      /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 10, padding: 20, justifyContent: "center", flexWrap: "wrap" } }, onReposition && /* @__PURE__ */ React.createElement(PrimaryBtn, { onClick: onReposition }, "Reposition preview"), /* @__PURE__ */ React.createElement(
+        "button",
+        {
+          onClick: onChangePhoto,
+          style: {
+            background: "transparent",
+            border: `1px solid ${LINE}`,
+            color: INK,
+            borderRadius: 10,
+            padding: "10px 18px",
+            fontSize: 14,
+            cursor: "pointer"
+          }
+        },
+        "Change photo"
+      ))
+    );
+  }
+  function RepositionEditor({ photoFull, photoSmall, shape, initialPosition, onSave, onCancel }) {
+    const [pos, setPos] = useState(initialPosition || { x: 50, y: 50 });
+    const containerRef = useRef(null);
+    const dragging = useRef(false);
+    const lastPoint = useRef({ x: 0, y: 0 });
+    function handlePointerDown(e) {
+      dragging.current = true;
+      lastPoint.current = { x: e.clientX, y: e.clientY };
+      e.currentTarget.setPointerCapture?.(e.pointerId);
+    }
+    function handlePointerMove(e) {
+      if (!dragging.current || !containerRef.current) return;
+      const rect = containerRef.current.getBoundingClientRect();
+      const dx = (e.clientX - lastPoint.current.x) / rect.width * 100;
+      const dy = (e.clientY - lastPoint.current.y) / rect.height * 100;
+      lastPoint.current = { x: e.clientX, y: e.clientY };
+      setPos((p) => ({
+        x: Math.min(100, Math.max(0, p.x - dx)),
+        y: Math.min(100, Math.max(0, p.y - dy))
+      }));
+    }
+    function handlePointerUp() {
+      dragging.current = false;
+    }
+    return /* @__PURE__ */ React.createElement(
+      "div",
+      {
+        style: {
+          position: "fixed",
+          inset: 0,
+          background: "rgba(10,9,8,0.96)",
+          zIndex: 2e3,
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: 20
+        }
+      },
+      /* @__PURE__ */ React.createElement("div", { style: { fontSize: 13, color: INK_MUTED, marginBottom: 18, textAlign: "center" } }, "Drag the photo to choose what's centered in the preview"),
+      /* @__PURE__ */ React.createElement(
+        "div",
+        {
+          ref: containerRef,
+          onPointerDown: handlePointerDown,
+          onPointerMove: handlePointerMove,
+          onPointerUp: handlePointerUp,
+          onPointerCancel: handlePointerUp,
+          style: {
+            width: 240,
+            height: 240,
+            borderRadius: shape === "circle" ? "50%" : 16,
+            background: `#111 url(${photoFull || photoSmall}) ${pos.x}% ${pos.y}% / cover no-repeat`,
+            border: `3px solid ${LINE}`,
+            touchAction: "none",
+            cursor: "grab"
+          }
+        }
+      ),
+      /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 10, marginTop: 26 } }, /* @__PURE__ */ React.createElement(PrimaryBtn, { onClick: () => onSave(pos) }, "Save"), /* @__PURE__ */ React.createElement(
+        "button",
+        {
+          onClick: onCancel,
+          style: {
+            background: "transparent",
+            border: `1px solid ${LINE}`,
+            color: INK,
+            borderRadius: 10,
+            padding: "10px 18px",
+            fontSize: 14,
+            cursor: "pointer"
+          }
+        },
+        "Cancel"
+      ))
     );
   }
   var BRAND_NAMES = Object.keys(BRAND_COLORS);
@@ -936,10 +1048,15 @@
       setCurrent(next);
       projectCache.current[next.id] = next;
       scheduleProjectSave(next);
-      if (patch.name !== void 0 || patch.thumbnail !== void 0) {
+      if (patch.name !== void 0 || patch.thumbnail !== void 0 || patch.thumbnailPosition !== void 0) {
         const cat = current.catalog || "mini";
         const nextIndex = indexes[cat].map(
-          (p) => p.id === current.id ? { ...p, name: patch.name ?? p.name, thumbnail: patch.thumbnail ?? p.thumbnail } : p
+          (p) => p.id === current.id ? {
+            ...p,
+            name: patch.name ?? p.name,
+            thumbnail: patch.thumbnail ?? p.thumbnail,
+            thumbnailPosition: patch.thumbnailPosition ?? p.thumbnailPosition
+          } : p
         );
         setIndexes((prev) => ({ ...prev, [cat]: nextIndex }));
         scheduleIndexSave(cat, nextIndex);
@@ -948,13 +1065,21 @@
     async function handleThumbUpload(e) {
       const file = e.target.files?.[0];
       if (!file) return;
-      const dataUrl = await fileToResizedDataUrl(file, 400, 0.7);
-      await updateCurrent({ thumbnail: dataUrl });
+      const [dataUrl, fullDataUrl] = await Promise.all([
+        fileToResizedDataUrl(file, 400, 0.7),
+        fileToResizedDataUrl(file, 1600, 0.8)
+      ]);
+      await updateCurrent({ thumbnail: dataUrl, thumbnailFull: fullDataUrl, thumbnailPosition: { x: 50, y: 50 } });
     }
     async function handleStepPhoto(stepId, file) {
       if (!file) return;
-      const dataUrl = await fileToResizedDataUrl(file, 500, 0.65);
-      const steps = current.steps.map((s) => s.id === stepId ? { ...s, photo: dataUrl } : s);
+      const [dataUrl, fullDataUrl] = await Promise.all([
+        fileToResizedDataUrl(file, 500, 0.65),
+        fileToResizedDataUrl(file, 1600, 0.8)
+      ]);
+      const steps = current.steps.map(
+        (s) => s.id === stepId ? { ...s, photo: dataUrl, photoFull: fullDataUrl, photoPosition: { x: 50, y: 50 } } : s
+      );
       await updateCurrent({ steps });
     }
     function addStep(section) {
@@ -1383,7 +1508,7 @@
               visibility: isDragging ? "hidden" : "visible"
             }
           },
-          /* @__PURE__ */ React.createElement(BaseThumb, { src: p.thumbnail }),
+          /* @__PURE__ */ React.createElement(BaseThumb, { src: p.thumbnail, position: p.thumbnailPosition }),
           /* @__PURE__ */ React.createElement(
             "div",
             {
@@ -1420,7 +1545,13 @@
           filter: "drop-shadow(0 8px 16px rgba(0,0,0,0.5))"
         }
       },
-      /* @__PURE__ */ React.createElement(BaseThumb, { src: (index.find((p) => p.id === draggingId) || {}).thumbnail }),
+      /* @__PURE__ */ React.createElement(
+        BaseThumb,
+        {
+          src: (index.find((p) => p.id === draggingId) || {}).thumbnail,
+          position: (index.find((p) => p.id === draggingId) || {}).thumbnailPosition
+        }
+      ),
       /* @__PURE__ */ React.createElement("div", { style: { fontSize: 12, color: INK, textAlign: "center", maxWidth: 110 } }, (index.find((p) => p.id === draggingId) || {}).name || "Untitled")
     ));
   }
@@ -1443,6 +1574,8 @@
     onDelete
   }) {
     const [confirmDelete, setConfirmDelete] = useState(false);
+    const [viewerOpen, setViewerOpen] = useState(false);
+    const [repositioning, setRepositioning] = useState(false);
     if (loadError) {
       return /* @__PURE__ */ React.createElement("div", { style: { maxWidth: 640, margin: "0 auto", padding: 20 } }, /* @__PURE__ */ React.createElement(IconBtn, { onClick: onBack, label: "Back", style: { marginBottom: 20 } }, /* @__PURE__ */ React.createElement(ArrowLeft, { size: 18 })), /* @__PURE__ */ React.createElement("div", { style: { color: INK_MUTED, fontSize: 14, marginBottom: 14 } }, "This ", config.entryLabel, " didn't load. Your data is likely still there \u2014 try again."), /* @__PURE__ */ React.createElement(PrimaryBtn, { onClick: onRetry }, "Try again"));
     }
@@ -1469,7 +1602,15 @@
         },
         "Cancel"
       ))
-    ), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 18, alignItems: "center", marginBottom: 22 } }, /* @__PURE__ */ React.createElement("div", { style: { position: "relative" } }, /* @__PURE__ */ React.createElement(BaseThumb, { src: project.thumbnail, size: 92, onClick: () => fileRef.current?.click() }), /* @__PURE__ */ React.createElement(
+    ), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 18, alignItems: "center", marginBottom: 22 } }, /* @__PURE__ */ React.createElement("div", { style: { position: "relative" } }, /* @__PURE__ */ React.createElement(
+      BaseThumb,
+      {
+        src: project.thumbnail,
+        position: project.thumbnailPosition,
+        size: 92,
+        onClick: () => project.thumbnail ? setViewerOpen(true) : fileRef.current?.click()
+      }
+    ), /* @__PURE__ */ React.createElement(
       "input",
       {
         ref: fileRef,
@@ -1534,7 +1675,35 @@
           onRemoveSection: () => onRemoveSection(sec.id)
         }
       );
-    }), /* @__PURE__ */ React.createElement(AddSectionControl, { onAdd: onAddSection }));
+    }), /* @__PURE__ */ React.createElement(AddSectionControl, { onAdd: onAddSection }), viewerOpen && /* @__PURE__ */ React.createElement(
+      PhotoViewer,
+      {
+        photoFull: project.thumbnailFull,
+        photoSmall: project.thumbnail,
+        onClose: () => setViewerOpen(false),
+        onChangePhoto: () => {
+          setViewerOpen(false);
+          fileRef.current?.click();
+        },
+        onReposition: () => {
+          setViewerOpen(false);
+          setRepositioning(true);
+        }
+      }
+    ), repositioning && /* @__PURE__ */ React.createElement(
+      RepositionEditor,
+      {
+        photoFull: project.thumbnailFull,
+        photoSmall: project.thumbnail,
+        shape: "circle",
+        initialPosition: project.thumbnailPosition,
+        onSave: (pos) => {
+          onUpdate({ thumbnailPosition: pos });
+          setRepositioning(false);
+        },
+        onCancel: () => setRepositioning(false)
+      }
+    ));
   }
   function SectionBlock({ section, steps, onAddStep, onUpdateStep, onRemoveStep, onStepPhoto, onRename, onRemoveSection }) {
     const [editingLabel, setEditingLabel] = useState(false);
@@ -1665,6 +1834,8 @@
   }
   function StepCard({ index, step, onUpdate, onRemove, onPhoto }) {
     const photoRef = useRef(null);
+    const [viewerOpen, setViewerOpen] = useState(false);
+    const [repositioning, setRepositioning] = useState(false);
     return /* @__PURE__ */ React.createElement("div", { style: { background: SURFACE, border: `1px solid ${LINE}`, borderRadius: 14, padding: 16 } }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 12, alignItems: "flex-start" } }, /* @__PURE__ */ React.createElement(
       "div",
       {
@@ -1704,12 +1875,12 @@
     ), /* @__PURE__ */ React.createElement(IconBtn, { onClick: onRemove, label: "Remove step", style: { width: 32, height: 32 } }, /* @__PURE__ */ React.createElement(X, { size: 14 }))), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 12, marginTop: 10, alignItems: "flex-start" } }, /* @__PURE__ */ React.createElement(
       "div",
       {
-        onClick: () => photoRef.current?.click(),
+        onClick: () => step.photo ? setViewerOpen(true) : photoRef.current?.click(),
         style: {
           width: 64,
           height: 64,
           borderRadius: 8,
-          background: step.photo ? `#111 url(${step.photo}) center/cover no-repeat` : SURFACE_RAISED,
+          background: step.photo ? `#111 url(${step.photo}) ${(step.photoPosition || { x: 50, y: 50 }).x}% ${(step.photoPosition || { x: 50, y: 50 }).y}% / cover no-repeat` : SURFACE_RAISED,
           border: `1px solid ${LINE}`,
           display: "flex",
           alignItems: "center",
@@ -1735,7 +1906,35 @@
         onChange: (v) => onUpdate({ notes: v }),
         placeholder: ""
       }
-    ))))));
+    ))))), viewerOpen && /* @__PURE__ */ React.createElement(
+      PhotoViewer,
+      {
+        photoFull: step.photoFull,
+        photoSmall: step.photo,
+        onClose: () => setViewerOpen(false),
+        onChangePhoto: () => {
+          setViewerOpen(false);
+          photoRef.current?.click();
+        },
+        onReposition: () => {
+          setViewerOpen(false);
+          setRepositioning(true);
+        }
+      }
+    ), repositioning && /* @__PURE__ */ React.createElement(
+      RepositionEditor,
+      {
+        photoFull: step.photoFull,
+        photoSmall: step.photo,
+        shape: "square",
+        initialPosition: step.photoPosition,
+        onSave: (pos) => {
+          onUpdate({ photoPosition: pos });
+          setRepositioning(false);
+        },
+        onCancel: () => setRepositioning(false)
+      }
+    ));
   }
   function LockerView({ paints, onBack, onSave }) {
     const [q, setQ] = useState("");
