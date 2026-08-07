@@ -169,6 +169,21 @@
   function Upload(props) {
     return /* @__PURE__ */ React.createElement(Icon, { ...props }, /* @__PURE__ */ React.createElement("path", { d: "M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" }), /* @__PURE__ */ React.createElement("polyline", { points: "17 8 12 3 7 8" }), /* @__PURE__ */ React.createElement("line", { x1: "12", y1: "3", x2: "12", y2: "15" }));
   }
+  function Copy(props) {
+    return /* @__PURE__ */ React.createElement(Icon, { ...props }, /* @__PURE__ */ React.createElement("rect", { x: "9", y: "9", width: "13", height: "13", rx: "2", ry: "2" }), /* @__PURE__ */ React.createElement("path", { d: "M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" }));
+  }
+  function Maximize2(props) {
+    return /* @__PURE__ */ React.createElement(Icon, { ...props }, /* @__PURE__ */ React.createElement("polyline", { points: "15 3 21 3 21 9" }), /* @__PURE__ */ React.createElement("polyline", { points: "9 21 3 21 3 15" }), /* @__PURE__ */ React.createElement("line", { x1: "21", y1: "3", x2: "14", y2: "10" }), /* @__PURE__ */ React.createElement("line", { x1: "3", y1: "21", x2: "10", y2: "14" }));
+  }
+  function ChevronUp(props) {
+    return /* @__PURE__ */ React.createElement(Icon, { ...props }, /* @__PURE__ */ React.createElement("polyline", { points: "18 15 12 9 6 15" }));
+  }
+  function ChevronDown(props) {
+    return /* @__PURE__ */ React.createElement(Icon, { ...props }, /* @__PURE__ */ React.createElement("polyline", { points: "6 9 12 15 18 9" }));
+  }
+  function ImageIcon(props) {
+    return /* @__PURE__ */ React.createElement(Icon, { ...props }, /* @__PURE__ */ React.createElement("rect", { x: "3", y: "3", width: "18", height: "18", rx: "2", ry: "2" }), /* @__PURE__ */ React.createElement("circle", { cx: "8.5", cy: "8.5", r: "1.5" }), /* @__PURE__ */ React.createElement("polyline", { points: "21 15 16 10 5 21" }));
+  }
   function ShelfIcon({ size = 40, color = "currentColor" }) {
     return /* @__PURE__ */ React.createElement(
       "svg",
@@ -252,6 +267,12 @@
       indexKey: "badge-index"
     }
   };
+  var STATUSES = [
+    { key: "queued", label: "Queued", color: "#8A857F" },
+    { key: "in_progress", label: "In Progress", color: GOLD },
+    { key: "finished", label: "Finished", color: "#4C8A5E" }
+  ];
+  var STATUS_BY_KEY = Object.fromEntries(STATUSES.map((s) => [s.key, s]));
   var SEED_PAINTS = [
     // Games Workshop / Citadel
     ["Games Workshop", "Base", "Abaddon Black"],
@@ -559,7 +580,8 @@
       ) : /* @__PURE__ */ React.createElement(Camera, { size: size * 0.28, color: INK_MUTED })
     );
   }
-  function PhotoViewer({ photoFull, photoSmall, onClose, onChangePhoto, onReposition }) {
+  function PhotoViewer({ photoFull, photoSmall, onClose, onChangePhoto, onReposition, onDelete }) {
+    const [confirmDelete, setConfirmDelete] = useState(false);
     return /* @__PURE__ */ React.createElement(
       "div",
       {
@@ -581,7 +603,14 @@
           style: { maxWidth: "100%", maxHeight: "100%", objectFit: "contain", borderRadius: 8 }
         }
       )),
-      /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 10, padding: 20, justifyContent: "center", flexWrap: "wrap" } }, onReposition && /* @__PURE__ */ React.createElement(PrimaryBtn, { onClick: onReposition }, "Reposition preview"), /* @__PURE__ */ React.createElement(
+      confirmDelete ? /* @__PURE__ */ React.createElement("div", { style: { display: "flex", flexDirection: "column", alignItems: "center", gap: 10, padding: 20 } }, /* @__PURE__ */ React.createElement("div", { style: { fontSize: 13, color: INK_MUTED } }, "Delete this photo? This can't be undone."), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 10 } }, /* @__PURE__ */ React.createElement(PrimaryBtn, { onClick: onDelete, style: { background: "#B23A48", color: INK } }, "Delete"), /* @__PURE__ */ React.createElement(
+        "button",
+        {
+          onClick: () => setConfirmDelete(false),
+          style: { background: "transparent", border: `1px solid ${LINE}`, color: INK, borderRadius: 10, padding: "10px 18px", cursor: "pointer" }
+        },
+        "Cancel"
+      ))) : /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 10, padding: 20, justifyContent: "center", flexWrap: "wrap" } }, onReposition && /* @__PURE__ */ React.createElement(PrimaryBtn, { onClick: onReposition }, "Reposition preview"), onChangePhoto && /* @__PURE__ */ React.createElement(
         "button",
         {
           onClick: onChangePhoto,
@@ -596,7 +625,56 @@
           }
         },
         "Change photo"
+      ), onDelete && /* @__PURE__ */ React.createElement(
+        "button",
+        {
+          onClick: () => setConfirmDelete(true),
+          style: {
+            background: "transparent",
+            border: `1px solid #B23A48`,
+            color: "#e88b95",
+            borderRadius: 10,
+            padding: "10px 18px",
+            fontSize: 14,
+            cursor: "pointer"
+          }
+        },
+        "Delete photo"
       ))
+    );
+  }
+  function TextViewer({ title, text, onClose }) {
+    return /* @__PURE__ */ React.createElement(
+      "div",
+      {
+        style: {
+          position: "fixed",
+          inset: 0,
+          background: "rgba(10,9,8,0.97)",
+          zIndex: 2e3,
+          display: "flex",
+          flexDirection: "column"
+        }
+      },
+      /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", padding: 14, gap: 10 } }, /* @__PURE__ */ React.createElement(
+        "div",
+        {
+          style: {
+            flex: 1,
+            fontFamily: "'Barlow Condensed', sans-serif",
+            fontWeight: 700,
+            fontSize: 18,
+            textTransform: "uppercase",
+            letterSpacing: 0.5,
+            color: INK_MUTED,
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap"
+          }
+        },
+        title
+      ), /* @__PURE__ */ React.createElement(IconBtn, { onClick: onClose, label: "Close" }, /* @__PURE__ */ React.createElement(X, { size: 18 }))),
+      /* @__PURE__ */ React.createElement("div", { style: { flex: 1, overflowY: "auto", padding: "8px 24px 40px" } }, /* @__PURE__ */ React.createElement("div", { style: { fontSize: 17, lineHeight: 1.6, color: INK, whiteSpace: "pre-wrap" } }, text))
     );
   }
   var MIN_ZOOM = 1;
@@ -880,6 +958,11 @@
       })();
     }, []);
     useEffect(() => {
+      if (!loaded) return;
+      purgeOldTrash("mini");
+      purgeOldTrash("badge");
+    }, [loaded]);
+    useEffect(() => {
       function handleFocusOut(e) {
         const tag = e.target.tagName;
         if (tag !== "INPUT" && tag !== "TEXTAREA") return;
@@ -1000,29 +1083,88 @@
         throw err;
       }
     }
+    const [gallery, setGallery] = useState([]);
+    const [galleryState, setGalleryState] = useState("idle");
+    const [galleryProjectId, setGalleryProjectId] = useState(null);
+    const galleryCache = useRef({});
+    async function loadGallery(id) {
+      setGalleryProjectId(id);
+      if (galleryCache.current[id]) {
+        setGallery(galleryCache.current[id]);
+        setGalleryState("ready");
+        return;
+      }
+      setGallery([]);
+      setGalleryState("loading");
+      try {
+        const res = await getWithRetry("gallery:" + id, 2, 300);
+        const photos = res ? JSON.parse(res.value) : [];
+        galleryCache.current[id] = photos;
+        setGallery(photos);
+        setGalleryState("ready");
+      } catch (err) {
+        console.error("Load gallery failed, defaulting to empty", err);
+        galleryCache.current[id] = [];
+        setGallery([]);
+        setGalleryState("ready");
+      }
+    }
+    async function persistGallery(id, photos) {
+      galleryCache.current[id] = photos;
+      setGallery(photos);
+      try {
+        await window.storage.set("gallery:" + id, JSON.stringify(photos));
+      } catch (err) {
+        console.error("Save gallery failed", err);
+      }
+    }
+    async function addGalleryPhoto(file) {
+      const id = galleryProjectId;
+      if (!id || !file) return;
+      const [thumb, full] = await Promise.all([
+        fileToResizedDataUrl(file, 350, 0.7),
+        fileToResizedDataUrl(file, 1400, 0.75)
+      ]);
+      const photo = { id: uid(), thumb, full, addedAt: Date.now() };
+      const next = [photo, ...galleryCache.current[id] || gallery];
+      await persistGallery(id, next);
+    }
+    async function deleteGalleryPhoto(photoId) {
+      const id = galleryProjectId;
+      if (!id) return;
+      const next = (galleryCache.current[id] || gallery).filter((p) => p.id !== photoId);
+      await persistGallery(id, next);
+    }
     async function exportAllData() {
       const projects = {};
+      const galleries = {};
       for (const catKey of Object.keys(CATALOGS)) {
         for (const entry of indexes[catKey]) {
           const cached = projectCache.current[entry.id];
           if (cached) {
             projects[entry.id] = cached;
-            continue;
+          } else {
+            try {
+              const proj = await fetchProject(entry.id);
+              if (proj) projects[entry.id] = proj;
+            } catch (err) {
+              console.error("Export: couldn't fetch project", entry.id, err);
+            }
           }
           try {
-            const proj = await fetchProject(entry.id);
-            if (proj) projects[entry.id] = proj;
+            const res = await window.storage.get("gallery:" + entry.id);
+            if (res) galleries[entry.id] = JSON.parse(res.value);
           } catch (err) {
-            console.error("Export: couldn't fetch project", entry.id, err);
           }
         }
       }
       const bundle = {
         app: "mini-tracker",
-        version: 2,
+        version: 3,
         exportedAt: (/* @__PURE__ */ new Date()).toISOString(),
         indexes,
         projects,
+        galleries,
         paints
       };
       const blob = new Blob([JSON.stringify(bundle, null, 2)], { type: "application/json" });
@@ -1048,9 +1190,18 @@
       }
       const nextPaints = Array.isArray(bundle.paints) ? bundle.paints : [];
       const projects = bundle.projects && typeof bundle.projects === "object" ? bundle.projects : {};
+      const galleries = bundle.galleries && typeof bundle.galleries === "object" ? bundle.galleries : {};
       for (const [id, proj] of Object.entries(projects)) {
         projectCache.current[id] = proj;
         await persistProjectNow(proj);
+      }
+      for (const [id, photos] of Object.entries(galleries)) {
+        galleryCache.current[id] = photos;
+        try {
+          await window.storage.set("gallery:" + id, JSON.stringify(photos));
+        } catch (err) {
+          console.error("Restore gallery failed", id, err);
+        }
       }
       await saveIndex("mini", nextIndexes.mini);
       await saveIndex("badge", nextIndexes.badge);
@@ -1075,6 +1226,14 @@
           if (proj) {
             projectCache.current[id] = proj;
             setCurrent(proj);
+            const cat = proj.catalog || "mini";
+            const indexEntry = indexes[cat].find((p) => p.id === id);
+            if (indexEntry && indexEntry.notesBlob === void 0) {
+              const blob = computeNotesBlob(proj);
+              const nextIndex = indexes[cat].map((p) => p.id === id ? { ...p, notesBlob: blob } : p);
+              setIndexes((prev) => ({ ...prev, [cat]: nextIndex }));
+              scheduleIndexSave(cat, nextIndex);
+            }
           } else {
             setLoadError(true);
           }
@@ -1091,36 +1250,120 @@
         catalog,
         name: "",
         notes: "",
+        status: "queued",
         thumbnail: null,
         sections: DEFAULT_SECTIONS.map((s) => ({ ...s })),
         steps: []
       };
       await saveProject(proj);
-      const nextIndex = [{ id, name: proj.name, thumbnail: null }, ...indexes[catalog]];
+      const nextIndex = [{ id, name: proj.name, thumbnail: null, status: proj.status }, ...indexes[catalog]];
       await saveIndex(catalog, nextIndex);
       setCurrentId(id);
       setView("mini");
     }
-    async function deleteProject(id) {
-      const nextIndex = indexes[catalog].filter((p) => p.id !== id);
+    async function duplicateProject(source) {
+      const id = uid();
+      const proj = {
+        ...source,
+        id,
+        catalog,
+        name: source.name ? source.name + " (copy)" : "",
+        status: "queued",
+        thumbnail: null,
+        thumbnailFull: null,
+        thumbnailPosition: { x: 50, y: 50 },
+        thumbnailZoom: 1,
+        steps: source.steps.map((s) => ({
+          ...s,
+          id: uid(),
+          photo: null,
+          photoFull: null,
+          photoPosition: { x: 50, y: 50 },
+          photoZoom: 1
+        }))
+      };
+      await saveProject(proj);
+      const nextIndex = [
+        { id, name: proj.name, thumbnail: null, status: proj.status, notesBlob: computeNotesBlob(proj) },
+        ...indexes[catalog]
+      ];
       await saveIndex(catalog, nextIndex);
-      delete projectCache.current[id];
-      try {
-        await window.storage.delete("project:" + id);
-      } catch (err) {
-      }
+      setCurrentId(id);
+      setView("mini");
+    }
+    const TRASH_RETENTION_DAYS = 30;
+    async function deleteProject(id) {
+      const nextIndex = indexes[catalog].map((p) => p.id === id ? { ...p, deletedAt: Date.now() } : p);
+      await saveIndex(catalog, nextIndex);
       if (currentId === id) {
         setView("catalog");
         setCurrent(null);
         setCurrentId(null);
       }
     }
+    async function restoreProject(catKey, id) {
+      const nextIndex = indexes[catKey].map((p) => {
+        if (p.id !== id) return p;
+        const { deletedAt, ...rest } = p;
+        return rest;
+      });
+      await saveIndex(catKey, nextIndex);
+    }
+    async function permanentlyDeleteProject(catKey, id) {
+      const nextIndex = indexes[catKey].filter((p) => p.id !== id);
+      await saveIndex(catKey, nextIndex);
+      delete projectCache.current[id];
+      delete galleryCache.current[id];
+      try {
+        await window.storage.delete("project:" + id);
+      } catch (err) {
+      }
+      try {
+        await window.storage.delete("gallery:" + id);
+      } catch (err) {
+      }
+    }
+    async function purgeOldTrash(catKey) {
+      const cutoff = Date.now() - TRASH_RETENTION_DAYS * 24 * 60 * 60 * 1e3;
+      const toPurge = indexes[catKey].filter((p) => p.deletedAt && p.deletedAt < cutoff);
+      if (toPurge.length === 0) return;
+      const nextIndex = indexes[catKey].filter((p) => !(p.deletedAt && p.deletedAt < cutoff));
+      await saveIndex(catKey, nextIndex);
+      for (const p of toPurge) {
+        delete projectCache.current[p.id];
+        try {
+          await window.storage.delete("project:" + p.id);
+        } catch (err) {
+        }
+      }
+    }
+    function moveStep(stepId, direction) {
+      const step = current.steps.find((s) => s.id === stepId);
+      if (!step) return;
+      const sec = step.section || "model";
+      const sectionSteps = current.steps.filter((s) => (s.section || "model") === sec);
+      const idx = sectionSteps.findIndex((s) => s.id === stepId);
+      const swapIdx = idx + direction;
+      if (swapIdx < 0 || swapIdx >= sectionSteps.length) return;
+      const otherId = sectionSteps[swapIdx].id;
+      const steps = current.steps.slice();
+      const flatA = steps.findIndex((s) => s.id === stepId);
+      const flatB = steps.findIndex((s) => s.id === otherId);
+      [steps[flatA], steps[flatB]] = [steps[flatB], steps[flatA]];
+      updateCurrent({ steps });
+    }
+    function computeNotesBlob(proj) {
+      const parts = [proj.notes || ""];
+      for (const s of proj.steps || []) parts.push(s.title || "", s.notes || "");
+      return parts.join(" ").toLowerCase();
+    }
     function updateCurrent(patch) {
       const next = { ...current, ...patch };
       setCurrent(next);
       projectCache.current[next.id] = next;
       scheduleProjectSave(next);
-      if (patch.name !== void 0 || patch.thumbnail !== void 0 || patch.thumbnailPosition !== void 0 || patch.thumbnailZoom !== void 0) {
+      const touchesIndex = patch.name !== void 0 || patch.thumbnail !== void 0 || patch.thumbnailPosition !== void 0 || patch.thumbnailZoom !== void 0 || patch.status !== void 0 || patch.notes !== void 0 || patch.steps !== void 0;
+      if (touchesIndex) {
         const cat = current.catalog || "mini";
         const nextIndex = indexes[cat].map(
           (p) => p.id === current.id ? {
@@ -1128,7 +1371,9 @@
             name: patch.name ?? p.name,
             thumbnail: patch.thumbnail ?? p.thumbnail,
             thumbnailPosition: patch.thumbnailPosition ?? p.thumbnailPosition,
-            thumbnailZoom: patch.thumbnailZoom ?? p.thumbnailZoom
+            thumbnailZoom: patch.thumbnailZoom ?? p.thumbnailZoom,
+            status: patch.status ?? p.status,
+            notesBlob: patch.notes !== void 0 || patch.steps !== void 0 ? computeNotesBlob(next) : p.notesBlob
           } : p
         );
         setIndexes((prev) => ({ ...prev, [cat]: nextIndex }));
@@ -1193,11 +1438,15 @@
     }
     const filteredIndex = useMemo(() => {
       if (!catalog) return [];
-      const list = indexes[catalog];
+      const list = indexes[catalog].filter((p) => !p.deletedAt);
       if (!search.trim()) return list;
       const s = search.toLowerCase();
-      return list.filter((p) => p.name.toLowerCase().includes(s));
+      return list.filter((p) => p.name.toLowerCase().includes(s) || (p.notesBlob || "").includes(s));
     }, [indexes, catalog, search]);
+    const trashedIndex = useMemo(() => {
+      if (!catalog) return [];
+      return indexes[catalog].filter((p) => p.deletedAt).sort((a, b) => b.deletedAt - a.deletedAt);
+    }, [indexes, catalog]);
     if (!loaded) {
       return /* @__PURE__ */ React.createElement("div", { style: { background: BG, minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", color: INK_MUTED, fontFamily: "Inter, sans-serif" } }, "Loading the workbench\u2026");
     }
@@ -1257,14 +1506,27 @@
         {
           config: catalogConfig,
           index: filteredIndex,
+          trashCount: trashedIndex.length,
           search,
           setSearch,
           onOpen: openProject,
           onCreate: createProject,
           onOpenLocker: () => setView("locker"),
           onOpenBackup: () => setView("backup"),
+          onOpenTrash: () => setView("trash"),
           onReorder: reorderIndex,
           onSwitchCatalog: backToChooser
+        }
+      ),
+      view === "trash" && /* @__PURE__ */ React.createElement(
+        TrashView,
+        {
+          config: catalogConfig,
+          items: trashedIndex,
+          retentionDays: TRASH_RETENTION_DAYS,
+          onBack: () => setView("catalog"),
+          onRestore: (id) => restoreProject(catalog, id),
+          onDeleteForever: (id) => permanentlyDeleteProject(catalog, id)
         }
       ),
       view === "mini" && /* @__PURE__ */ React.createElement(
@@ -1285,11 +1547,30 @@
           onAddStep: addStep,
           onUpdateStep: updateStep,
           onRemoveStep: removeStep,
+          onMoveStep: moveStep,
           onStepPhoto: handleStepPhoto,
           onAddSection: addSection,
           onRenameSection: renameSection,
           onRemoveSection: removeSection,
-          onDelete: () => deleteProject(current.id)
+          onDelete: () => deleteProject(current.id),
+          onDuplicate: () => duplicateProject(current),
+          onOpenGallery: () => {
+            loadGallery(current.id);
+            setView("gallery");
+          }
+        }
+      ),
+      view === "gallery" && /* @__PURE__ */ React.createElement(
+        GalleryView,
+        {
+          config: catalogConfig || CATALOGS[current?.catalog || "mini"],
+          entryName: current?.name,
+          photos: gallery,
+          galleryState,
+          onBack: () => setView("mini"),
+          onRetry: () => loadGallery(galleryProjectId),
+          onAdd: addGalleryPhoto,
+          onDelete: deleteGalleryPhoto
         }
       ),
       view === "locker" && /* @__PURE__ */ React.createElement(
@@ -1388,7 +1669,7 @@
       ))
     );
   }
-  function CatalogView({ config, index, search, setSearch, onOpen, onCreate, onOpenLocker, onOpenBackup, onReorder, onSwitchCatalog }) {
+  function CatalogView({ config, index, trashCount, search, setSearch, onOpen, onCreate, onOpenLocker, onOpenBackup, onOpenTrash, onReorder, onSwitchCatalog }) {
     const [rearranging, setRearranging] = useState(false);
     const [liveOrder, setLiveOrder] = useState(null);
     const [draggingId, setDraggingId] = useState(null);
@@ -1586,7 +1867,22 @@
               visibility: isDragging ? "hidden" : "visible"
             }
           },
-          /* @__PURE__ */ React.createElement(BaseThumb, { src: p.thumbnail, position: p.thumbnailPosition, zoom: p.thumbnailZoom }),
+          /* @__PURE__ */ React.createElement("div", { style: { position: "relative" } }, /* @__PURE__ */ React.createElement(BaseThumb, { src: p.thumbnail, position: p.thumbnailPosition, zoom: p.thumbnailZoom }), p.status && p.status !== "queued" && /* @__PURE__ */ React.createElement(
+            "div",
+            {
+              title: STATUS_BY_KEY[p.status]?.label,
+              style: {
+                position: "absolute",
+                bottom: 2,
+                right: 2,
+                width: 14,
+                height: 14,
+                borderRadius: "50%",
+                background: STATUS_BY_KEY[p.status]?.color || INK_MUTED,
+                border: `2px solid ${BG}`
+              }
+            }
+          )),
           /* @__PURE__ */ React.createElement(
             "div",
             {
@@ -1604,6 +1900,24 @@
           )
         );
       })
+    ), !rearranging && trashCount > 0 && /* @__PURE__ */ React.createElement(
+      "button",
+      {
+        onClick: onOpenTrash,
+        style: {
+          display: "block",
+          margin: "24px auto 0",
+          background: "transparent",
+          border: "none",
+          color: INK_MUTED,
+          fontSize: 13,
+          textDecoration: "underline",
+          cursor: "pointer"
+        }
+      },
+      "Recently deleted (",
+      trashCount,
+      ")"
     ), draggingId && /* @__PURE__ */ React.createElement(
       "div",
       {
@@ -1634,6 +1948,154 @@
       /* @__PURE__ */ React.createElement("div", { style: { fontSize: 12, color: INK, textAlign: "center", maxWidth: 110 } }, (index.find((p) => p.id === draggingId) || {}).name || "Untitled")
     ));
   }
+  function TrashView({ config, items, retentionDays, onBack, onRestore, onDeleteForever }) {
+    const [confirmId, setConfirmId] = useState(null);
+    function daysAgo(ts) {
+      const days = Math.floor((Date.now() - ts) / (24 * 60 * 60 * 1e3));
+      if (days <= 0) return "today";
+      if (days === 1) return "1 day ago";
+      return `${days} days ago`;
+    }
+    return /* @__PURE__ */ React.createElement("div", { style: { maxWidth: 640, margin: "0 auto", padding: "20px 20px 80px" } }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 12, marginBottom: 20 } }, /* @__PURE__ */ React.createElement(IconBtn, { onClick: onBack, label: "Back" }, /* @__PURE__ */ React.createElement(ArrowLeft, { size: 18 })), /* @__PURE__ */ React.createElement(
+      "h1",
+      {
+        style: {
+          fontFamily: "'Barlow Condensed', sans-serif",
+          fontWeight: 800,
+          fontSize: 26,
+          textTransform: "uppercase",
+          letterSpacing: 1,
+          margin: 0
+        }
+      },
+      "Recently Deleted"
+    )), /* @__PURE__ */ React.createElement("p", { style: { color: INK_MUTED, fontSize: 13, marginBottom: 22 } }, "Kept for ", retentionDays, " days before being removed for good."), items.length === 0 && /* @__PURE__ */ React.createElement("div", { style: { color: INK_MUTED, fontSize: 14 } }, "Nothing here."), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 12 } }, items.map((p) => /* @__PURE__ */ React.createElement(
+      "div",
+      {
+        key: p.id,
+        style: {
+          display: "flex",
+          alignItems: "center",
+          gap: 14,
+          background: SURFACE,
+          border: `1px solid ${LINE}`,
+          borderRadius: 12,
+          padding: 12
+        }
+      },
+      /* @__PURE__ */ React.createElement(BaseThumb, { src: p.thumbnail, position: p.thumbnailPosition, zoom: p.thumbnailZoom, size: 52 }),
+      /* @__PURE__ */ React.createElement("div", { style: { flex: 1, minWidth: 0 } }, /* @__PURE__ */ React.createElement("div", { style: { fontSize: 14, color: INK, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } }, p.name || "Untitled"), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 12, color: INK_MUTED } }, "Deleted ", daysAgo(p.deletedAt))),
+      confirmId === p.id ? /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 6 } }, /* @__PURE__ */ React.createElement(
+        "button",
+        {
+          onClick: () => onDeleteForever(p.id),
+          style: { background: "#B23A48", color: INK, border: "none", borderRadius: 8, padding: "8px 12px", fontSize: 12, cursor: "pointer" }
+        },
+        "Confirm"
+      ), /* @__PURE__ */ React.createElement(
+        "button",
+        {
+          onClick: () => setConfirmId(null),
+          style: { background: "transparent", border: `1px solid ${LINE}`, color: INK, borderRadius: 8, padding: "8px 12px", fontSize: 12, cursor: "pointer" }
+        },
+        "Cancel"
+      )) : /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 6, flexShrink: 0 } }, /* @__PURE__ */ React.createElement(
+        "button",
+        {
+          onClick: () => onRestore(p.id),
+          style: { background: GOLD, color: "#201E1D", border: "none", borderRadius: 8, padding: "8px 12px", fontSize: 12, fontWeight: 700, cursor: "pointer" }
+        },
+        "Restore"
+      ), /* @__PURE__ */ React.createElement(IconBtn, { onClick: () => setConfirmId(p.id), label: "Delete forever", style: { width: 34, height: 34 } }, /* @__PURE__ */ React.createElement(Trash2, { size: 14 })))
+    ))));
+  }
+  function GalleryView({ config, entryName, photos, galleryState, onBack, onRetry, onAdd, onDelete }) {
+    const [viewingId, setViewingId] = useState(null);
+    const [uploading, setUploading] = useState(false);
+    const fileRef = useRef(null);
+    async function handleFile(e) {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      setUploading(true);
+      await onAdd(file);
+      setUploading(false);
+      e.target.value = "";
+    }
+    const viewing = photos.find((p) => p.id === viewingId);
+    return /* @__PURE__ */ React.createElement("div", { style: { maxWidth: 640, margin: "0 auto", padding: "20px 20px 80px" } }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 12, marginBottom: 6 } }, /* @__PURE__ */ React.createElement(IconBtn, { onClick: onBack, label: "Back" }, /* @__PURE__ */ React.createElement(ArrowLeft, { size: 18 })), /* @__PURE__ */ React.createElement(
+      "h1",
+      {
+        style: {
+          fontFamily: "'Barlow Condensed', sans-serif",
+          fontWeight: 800,
+          fontSize: 24,
+          textTransform: "uppercase",
+          letterSpacing: 1,
+          margin: 0,
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+          whiteSpace: "nowrap"
+        }
+      },
+      "Gallery"
+    )), entryName && /* @__PURE__ */ React.createElement("p", { style: { color: INK_MUTED, fontSize: 13, marginBottom: 22, marginLeft: 52 } }, entryName), galleryState === "error" ? /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { style: { color: INK_MUTED, fontSize: 14, marginBottom: 14 } }, "Couldn't load this gallery. Your photos are likely still there \u2014 try again."), /* @__PURE__ */ React.createElement(PrimaryBtn, { onClick: onRetry }, "Try again")) : galleryState === "loading" ? /* @__PURE__ */ React.createElement("div", { style: { color: INK_MUTED, fontSize: 14 } }, "Loading\u2026") : /* @__PURE__ */ React.createElement(
+      "div",
+      {
+        style: {
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fill, minmax(96px, 1fr))",
+          gap: 12
+        }
+      },
+      /* @__PURE__ */ React.createElement(
+        "div",
+        {
+          onClick: () => !uploading && fileRef.current?.click(),
+          style: {
+            aspectRatio: "1",
+            borderRadius: 12,
+            border: `2px dashed ${LINE}`,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            cursor: uploading ? "default" : "pointer",
+            color: INK_MUTED,
+            flexDirection: "column",
+            gap: 4
+          }
+        },
+        uploading ? /* @__PURE__ */ React.createElement("div", { style: { fontSize: 11 } }, "Adding\u2026") : /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement(Plus, { size: 22 }), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 11 } }, "Add photo"))
+      ),
+      /* @__PURE__ */ React.createElement("input", { ref: fileRef, type: "file", accept: "image/*", style: { display: "none" }, onChange: handleFile }),
+      photos.map((p) => /* @__PURE__ */ React.createElement(
+        "div",
+        {
+          key: p.id,
+          onClick: () => setViewingId(p.id),
+          style: {
+            aspectRatio: "1",
+            borderRadius: 12,
+            overflow: "hidden",
+            cursor: "pointer",
+            background: "#111",
+            border: `1px solid ${LINE}`
+          }
+        },
+        /* @__PURE__ */ React.createElement("img", { src: p.thumb, alt: "", style: { width: "100%", height: "100%", objectFit: "cover" } })
+      ))
+    ), photos.length === 0 && galleryState === "ready" && /* @__PURE__ */ React.createElement("div", { style: { color: INK_MUTED, fontSize: 13, marginTop: 16 } }, "Add extra angles or shots here \u2014 separate from the main photo, easier to find later than scrolling your camera roll."), viewing && /* @__PURE__ */ React.createElement(
+      PhotoViewer,
+      {
+        photoFull: viewing.full,
+        photoSmall: viewing.thumb,
+        onClose: () => setViewingId(null),
+        onDelete: () => {
+          onDelete(viewing.id);
+          setViewingId(null);
+        }
+      }
+    ));
+  }
   function MiniView({
     config,
     project,
@@ -1646,11 +2108,14 @@
     onAddStep,
     onUpdateStep,
     onRemoveStep,
+    onMoveStep,
     onStepPhoto,
     onAddSection,
     onRenameSection,
     onRemoveSection,
-    onDelete
+    onDelete,
+    onDuplicate,
+    onOpenGallery
   }) {
     const [confirmDelete, setConfirmDelete] = useState(false);
     const [viewerOpen, setViewerOpen] = useState(false);
@@ -1661,7 +2126,7 @@
     if (!project) {
       return /* @__PURE__ */ React.createElement("div", { style: { maxWidth: 640, margin: "0 auto", padding: 20, color: INK_MUTED } }, "Loading\u2026");
     }
-    return /* @__PURE__ */ React.createElement("div", { style: { maxWidth: 640, margin: "0 auto", padding: "20px 20px 80px" } }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 12, marginBottom: 22 } }, /* @__PURE__ */ React.createElement(IconBtn, { onClick: onBack, label: "Back" }, /* @__PURE__ */ React.createElement(ArrowLeft, { size: 18 })), /* @__PURE__ */ React.createElement("div", { style: { flex: 1 } }), /* @__PURE__ */ React.createElement(IconBtn, { onClick: () => setConfirmDelete(true), label: `Delete ${config.entryLabel}` }, /* @__PURE__ */ React.createElement(Trash2, { size: 16 }))), confirmDelete && /* @__PURE__ */ React.createElement(
+    return /* @__PURE__ */ React.createElement("div", { style: { maxWidth: 640, margin: "0 auto", padding: "20px 20px 80px" } }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 12, marginBottom: 22 } }, /* @__PURE__ */ React.createElement(IconBtn, { onClick: onBack, label: "Back" }, /* @__PURE__ */ React.createElement(ArrowLeft, { size: 18 })), /* @__PURE__ */ React.createElement("div", { style: { flex: 1 } }), /* @__PURE__ */ React.createElement(IconBtn, { onClick: onOpenGallery, label: "Photo gallery" }, /* @__PURE__ */ React.createElement(ImageIcon, { size: 16 })), /* @__PURE__ */ React.createElement(IconBtn, { onClick: onDuplicate, label: `Duplicate ${config.entryLabel}` }, /* @__PURE__ */ React.createElement(Copy, { size: 16 })), /* @__PURE__ */ React.createElement(IconBtn, { onClick: () => setConfirmDelete(true), label: `Delete ${config.entryLabel}` }, /* @__PURE__ */ React.createElement(Trash2, { size: 16 }))), confirmDelete && /* @__PURE__ */ React.createElement(
       "div",
       {
         style: {
@@ -1672,7 +2137,7 @@
           marginBottom: 18
         }
       },
-      /* @__PURE__ */ React.createElement("div", { style: { fontSize: 14, marginBottom: 12 } }, 'Remove "', project.name, '" from ', config.screenTitle, "? This can't be undone."),
+      /* @__PURE__ */ React.createElement("div", { style: { fontSize: 14, marginBottom: 12 } }, 'Move "', project.name, '" to Recently Deleted? You can restore it from there for a while afterward.'),
       /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 10 } }, /* @__PURE__ */ React.createElement(PrimaryBtn, { onClick: onDelete, style: { background: "#B23A48", color: INK } }, "Delete"), /* @__PURE__ */ React.createElement(
         "button",
         {
@@ -1720,7 +2185,32 @@
           outline: "none"
         }
       }
-    )), /* @__PURE__ */ React.createElement(
+    )), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 6, marginBottom: 18 } }, STATUSES.map((s) => {
+      const active = (project.status || "queued") === s.key;
+      return /* @__PURE__ */ React.createElement(
+        "button",
+        {
+          key: s.key,
+          onClick: () => onUpdate({ status: s.key }),
+          style: {
+            flex: 1,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 6,
+            background: active ? s.color : SURFACE,
+            color: active ? "#201E1D" : INK_MUTED,
+            border: `1px solid ${active ? s.color : LINE}`,
+            borderRadius: 8,
+            padding: "8px 6px",
+            fontSize: 12,
+            fontWeight: active ? 700 : 500,
+            cursor: "pointer"
+          }
+        },
+        s.label
+      );
+    })), /* @__PURE__ */ React.createElement(
       "textarea",
       {
         value: project.notes,
@@ -1750,6 +2240,7 @@
           onAddStep: () => onAddStep(sec.id),
           onUpdateStep,
           onRemoveStep,
+          onMoveStep,
           onStepPhoto,
           onRename: (label) => onRenameSection(sec.id, label),
           onRemoveSection: () => onRemoveSection(sec.id)
@@ -1786,7 +2277,7 @@
       }
     ));
   }
-  function SectionBlock({ section, steps, onAddStep, onUpdateStep, onRemoveStep, onStepPhoto, onRename, onRemoveSection }) {
+  function SectionBlock({ section, steps, onAddStep, onUpdateStep, onRemoveStep, onMoveStep, onStepPhoto, onRename, onRemoveSection }) {
     const [editingLabel, setEditingLabel] = useState(false);
     const [labelVal, setLabelVal] = useState(section.label);
     const [confirmRemove, setConfirmRemove] = useState(false);
@@ -1850,7 +2341,9 @@
         step,
         onUpdate: (patch) => onUpdateStep(step.id, patch),
         onRemove: () => onRemoveStep(step.id),
-        onPhoto: (file) => onStepPhoto(step.id, file)
+        onPhoto: (file) => onStepPhoto(step.id, file),
+        onMoveUp: i > 0 ? () => onMoveStep(step.id, -1) : null,
+        onMoveDown: i < steps.length - 1 ? () => onMoveStep(step.id, 1) : null
       }
     ))));
   }
@@ -1913,10 +2406,11 @@
       "Cancel"
     ));
   }
-  function StepCard({ index, step, onUpdate, onRemove, onPhoto }) {
+  function StepCard({ index, step, onUpdate, onRemove, onPhoto, onMoveUp, onMoveDown }) {
     const photoRef = useRef(null);
     const [viewerOpen, setViewerOpen] = useState(false);
     const [repositioning, setRepositioning] = useState(false);
+    const [notesExpanded, setNotesExpanded] = useState(false);
     return /* @__PURE__ */ React.createElement("div", { style: { background: SURFACE, border: `1px solid ${LINE}`, borderRadius: 14, padding: 16 } }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 12, alignItems: "flex-start" } }, /* @__PURE__ */ React.createElement(
       "div",
       {
@@ -1937,7 +2431,7 @@
         }
       },
       index
-    ), /* @__PURE__ */ React.createElement("div", { style: { flex: 1 } }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 8, alignItems: "center" } }, /* @__PURE__ */ React.createElement(
+    ), /* @__PURE__ */ React.createElement("div", { style: { flex: 1 } }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 4, alignItems: "center" } }, /* @__PURE__ */ React.createElement(
       "input",
       {
         value: step.title,
@@ -1953,7 +2447,7 @@
           outline: "none"
         }
       }
-    ), /* @__PURE__ */ React.createElement(IconBtn, { onClick: onRemove, label: "Remove step", style: { width: 32, height: 32 } }, /* @__PURE__ */ React.createElement(X, { size: 14 }))), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 12, marginTop: 10, alignItems: "flex-start" } }, /* @__PURE__ */ React.createElement(
+    ), /* @__PURE__ */ React.createElement(IconBtn, { onClick: onMoveUp, label: "Move step up", style: { width: 28, height: 28, opacity: onMoveUp ? 1 : 0.3 } }, /* @__PURE__ */ React.createElement(ChevronUp, { size: 14 })), /* @__PURE__ */ React.createElement(IconBtn, { onClick: onMoveDown, label: "Move step down", style: { width: 28, height: 28, opacity: onMoveDown ? 1 : 0.3 } }, /* @__PURE__ */ React.createElement(ChevronDown, { size: 14 })), /* @__PURE__ */ React.createElement(IconBtn, { onClick: onRemove, label: "Remove step", style: { width: 32, height: 32 } }, /* @__PURE__ */ React.createElement(X, { size: 14 }))), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 12, marginTop: 10, alignItems: "flex-start" } }, /* @__PURE__ */ React.createElement(
       "div",
       {
         onClick: () => step.photo ? setViewerOpen(true) : photoRef.current?.click(),
@@ -1996,14 +2490,36 @@
         style: { display: "none" },
         onChange: (e) => e.target.files?.[0] && onPhoto(e.target.files[0])
       }
-    ), /* @__PURE__ */ React.createElement("div", { style: { flex: 1 } }, /* @__PURE__ */ React.createElement(
+    ), /* @__PURE__ */ React.createElement("div", { style: { flex: 1, position: "relative" } }, /* @__PURE__ */ React.createElement(
       FreeTextPaintNotes,
       {
         value: step.notes,
         onChange: (v) => onUpdate({ notes: v }),
         placeholder: ""
       }
-    ))))), viewerOpen && /* @__PURE__ */ React.createElement(
+    ), step.notes && /* @__PURE__ */ React.createElement(
+      "button",
+      {
+        onClick: () => setNotesExpanded(true),
+        "aria-label": "View full screen",
+        style: {
+          position: "absolute",
+          top: 6,
+          right: 6,
+          background: "rgba(32,30,29,0.7)",
+          border: "none",
+          borderRadius: 6,
+          width: 26,
+          height: 26,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          cursor: "pointer",
+          color: INK_MUTED
+        }
+      },
+      /* @__PURE__ */ React.createElement(Maximize2, { size: 13 })
+    ))))), notesExpanded && /* @__PURE__ */ React.createElement(TextViewer, { title: step.title || "Step notes", text: step.notes, onClose: () => setNotesExpanded(false) }), viewerOpen && /* @__PURE__ */ React.createElement(
       PhotoViewer,
       {
         photoFull: step.photoFull,
