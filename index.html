@@ -2431,7 +2431,7 @@
         }
       },
       index
-    ), /* @__PURE__ */ React.createElement("div", { style: { flex: 1 } }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 4, alignItems: "center" } }, /* @__PURE__ */ React.createElement(
+    ), /* @__PURE__ */ React.createElement("div", { style: { flex: 1, minWidth: 0 } }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 4, alignItems: "center" } }, /* @__PURE__ */ React.createElement(
       "input",
       {
         value: step.title,
@@ -2439,6 +2439,7 @@
         placeholder: "Step name \u2014 e.g. Pants, Cloak, Skin",
         style: {
           flex: 1,
+          minWidth: 0,
           background: "transparent",
           border: "none",
           color: INK,
@@ -2490,7 +2491,7 @@
         style: { display: "none" },
         onChange: (e) => e.target.files?.[0] && onPhoto(e.target.files[0])
       }
-    ), /* @__PURE__ */ React.createElement("div", { style: { flex: 1, position: "relative" } }, /* @__PURE__ */ React.createElement(
+    ), /* @__PURE__ */ React.createElement("div", { style: { flex: 1, minWidth: 0, position: "relative" } }, /* @__PURE__ */ React.createElement(
       FreeTextPaintNotes,
       {
         value: step.notes,
